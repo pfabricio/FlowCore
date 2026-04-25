@@ -1,4 +1,4 @@
-﻿namespace SuperMediaR.Core;
+﻿namespace FlowCore.Core;
 
 public struct Unit
 {

@@ -1,4 +1,4 @@
-﻿namespace SuperMediaR.Core.Interfaces;
+﻿namespace FlowCore.Core.Interfaces;
 
 public interface ICachableQuery<TResult> : IQuery<TResult>
 {

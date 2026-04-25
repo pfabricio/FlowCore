@@ -1,8 +1,8 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
-using SuperMediaR;
-using SuperMediaR.Core.Interfaces;
-using SuperMediaR.Pipeline.Behaviors;
+using FlowCore;
+using FlowCore.Core.Interfaces;
+using FlowCore.Pipeline.Behaviors;
 using System.Reflection;
 
 public static class ServiceCollectionExtensions
@@ -10,18 +10,18 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Usa todos os assemblies carregados no AppDomain (comportamento atual).
     /// </summary>
-    public static IServiceCollection AddSuperMediaR(this IServiceCollection services)
+    public static IServiceCollection AddFlowCore(this IServiceCollection services)
     {
-        return services.AddSuperMediaR(AppDomain.CurrentDomain.GetAssemblies());
+        return services.AddFlowCore(AppDomain.CurrentDomain.GetAssemblies());
     }
 
     /// <summary>
     /// Sobrecarga que permite registrar handlers somente dos assemblies informados.
     /// </summary>
-    public static IServiceCollection AddSuperMediaR(this IServiceCollection services, params Assembly[] assemblies)
+    public static IServiceCollection AddFlowCore(this IServiceCollection services, params Assembly[] assemblies)
     {
         // Core
-        services.AddScoped<ISuperMediator, SuperMediator>();
+        services.AddScoped<IFlowMediator, FlowMediator>();
 
         services.AddScoped<IDbContextResolver, DbContextResolver>();
 

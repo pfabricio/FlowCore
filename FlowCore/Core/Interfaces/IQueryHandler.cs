@@ -1,4 +1,4 @@
-﻿namespace SuperMediaR.Core.Interfaces;
+﻿namespace FlowCore.Core.Interfaces;
 
 public interface IQueryHandler<TQuery, TResult> where TQuery : IQuery<TResult>
 {

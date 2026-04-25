@@ -1,4 +1,4 @@
-﻿namespace SuperMediaR.Core.Interfaces;
+﻿namespace FlowCore.Core.Interfaces;
 
 public interface IEventHandler<TEvent> where TEvent : IEvent
 {

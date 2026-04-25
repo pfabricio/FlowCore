@@ -1,14 +1,14 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using SuperMediaR.Core.Interfaces;
+using FlowCore.Core.Interfaces;
 using System.Reflection;
 
-namespace SuperMediaR;
+namespace FlowCore;
 
-public class SuperMediator : ISuperMediator
+public class FlowMediator : IFlowMediator
 {
     private readonly IServiceProvider _serviceProvider;
 
-    public SuperMediator(IServiceProvider serviceProvider)
+    public FlowMediator(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
     }

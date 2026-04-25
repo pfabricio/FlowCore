@@ -1,4 +1,4 @@
-﻿namespace SuperMediaR.Core.Interfaces;
+﻿namespace FlowCore.Core.Interfaces;
 
 public delegate Task<TResult> RequestHandlerDelegate<TResult>();
 

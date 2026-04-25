@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-namespace SuperMediaR.Core.Interfaces;
+namespace FlowCore.Core.Interfaces;
 
 public interface IDbContextResolver
 {

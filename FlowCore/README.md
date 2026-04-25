@@ -1,7 +1,7 @@
 
-# SuperMediaR
+# FlowCore
 
-**SuperMediaR** é um Mediator leve, extensível e moderno para .NET 8+, com suporte a padrões como CQRS, Pipeline Behaviors e integração com EF Core. Ideal para aplicações complexas com separação de responsabilidades clara e escalável.
+**FlowCore** é um Mediator leve, extensível e moderno para .NET 8+, com suporte a padrões como CQRS, Pipeline Behaviors e integração com EF Core. Ideal para aplicações complexas com separação de responsabilidades clara e escalável.
 
 ## ✨ Recursos
 
@@ -24,7 +24,7 @@
 ### 1. Adicione no seu `Program.cs`:
 
 ```csharp
-builder.Services.AddSuperMediaR();
+builder.Services.AddFlowCore();
 ```
 
 ### 2. Configure o `DbContext`, `FluentValidation` e `ILogger` normalmente:

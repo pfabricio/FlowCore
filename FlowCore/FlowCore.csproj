@@ -7,7 +7,9 @@
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
 		<!-- Informações de pacote -->
-		<PackageId>SuperMediaR</PackageId>
+		<PackageId>FlowCore</PackageId>
+		<AssemblyName>FlowCore</AssemblyName>
+		<RootNamespace>FlowCore</RootNamespace>
 		<Version>1.0.5</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
@@ -15,7 +17,7 @@
 		<PackageTags>mediator cqrs pipeline validation</PackageTags>
 
 		<!-- Opcional, mas recomendado -->
-		<RepositoryUrl>https://github.com/pfabricio/SuperMediaR</RepositoryUrl>
+		<RepositoryUrl>https://github.com/pfabricio/FlowCore</RepositoryUrl>
 
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<IncludeSymbols>true</IncludeSymbols>

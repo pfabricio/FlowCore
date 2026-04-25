@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SuperMediaR.Core.Interfaces;
+using FlowCore.Core.Interfaces;
 
-namespace SuperMediaR.Pipeline.Behaviors
+namespace FlowCore.Pipeline.Behaviors
 {
     public class EventDispatcherBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     {
