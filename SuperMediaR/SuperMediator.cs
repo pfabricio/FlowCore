@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using SuperMediaR.Core.Interfaces;
+using System.Reflection;
 
 namespace SuperMediaR;
 
@@ -12,38 +13,55 @@ public class SuperMediator : ISuperMediator
         _serviceProvider = serviceProvider;
     }
 
-    public async Task<TResult> SendAsync<TResult>(ICommand<TResult> command, CancellationToken cancellationToken = default)
+    // -----------------------------
+    // COMMAND
+    // -----------------------------
+    public async Task<TResult> SendAsync<TResult>(
+        ICommand<TResult> command,
+        CancellationToken cancellationToken = default)
     {
-        var handlerType = typeof(ICommandHandler<,>).MakeGenericType(command.GetType(), typeof(TResult));
-        dynamic handler = _serviceProvider.GetRequiredService(handlerType);
-        return await handler.HandleAsync((dynamic)command, cancellationToken);
+        return await ExecutePipeline<ICommand<TResult>, TResult>(command, cancellationToken);
     }
 
-    public async Task<TResult> QueryAsync<TResult>(IQuery<TResult> query, CancellationToken cancellationToken = default)
+    // -----------------------------
+    // QUERY
+    // -----------------------------
+    public async Task<TResult> QueryAsync<TResult>(
+        IQuery<TResult> query,
+        CancellationToken cancellationToken = default)
     {
-        var handlerType = typeof(IQueryHandler<,>).MakeGenericType(query.GetType(), typeof(TResult));
-        dynamic handler = _serviceProvider.GetRequiredService(handlerType);
-        return await handler.HandleAsync((dynamic)query, cancellationToken);
+        return await ExecutePipeline<IQuery<TResult>, TResult>(query, cancellationToken);
     }
 
-    private Task<TResult> ExecutePipeline<TRequest, TResult>(TRequest request, CancellationToken cancellationToken)
+    // -----------------------------
+    // PIPELINE EXECUTION
+    // -----------------------------
+    private Task<TResult> ExecutePipeline<TRequest, TResult>(
+        TRequest request,
+        CancellationToken cancellationToken)
+        where TRequest : notnull
     {
+        // Pega todos os behaviors dessa Request
         var behaviors = _serviceProvider
             .GetServices<IPipelineBehavior<TRequest, TResult>>()
             .Reverse()
             .ToList();
 
+        // Handler final
         RequestHandlerDelegate<TResult> handler = async () =>
         {
             var handlerType = typeof(ICommandHandler<,>);
             if (typeof(IQuery<TResult>).IsAssignableFrom(typeof(TRequest)))
                 handlerType = typeof(IQueryHandler<,>);
 
-            var genericHandlerType = handlerType.MakeGenericType(typeof(TRequest), typeof(TResult));
-            dynamic handlerInstance = _serviceProvider.GetRequiredService(genericHandlerType);
-            return await handlerInstance.HandleAsync((dynamic)request, cancellationToken);
+            var closed = handlerType.MakeGenericType(request.GetType(), typeof(TResult));
+
+            dynamic instance = _serviceProvider.GetRequiredService(closed);
+
+            return await instance.HandleAsync((dynamic)request, cancellationToken);
         };
 
+        // Vai encaixando os behaviors em cadeia
         foreach (var behavior in behaviors)
         {
             var next = handler;
@@ -53,14 +71,15 @@ public class SuperMediator : ISuperMediator
         return handler();
     }
 
+    // -----------------------------
+    // EVENTS
+    // -----------------------------
     public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
         var handlerType = typeof(IEventHandler<>).MakeGenericType(@event.GetType());
         var handlers = _serviceProvider.GetServices(handlerType);
 
-        foreach (object handler in handlers)
-        {
+        foreach (var handler in handlers)
             await ((dynamic)handler).HandleAsync((dynamic)@event, cancellationToken);
-        }
     }
 }

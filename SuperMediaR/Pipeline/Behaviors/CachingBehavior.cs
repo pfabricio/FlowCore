@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.DependencyInjection;
 using SuperMediaR.Core.Interfaces;
 
 namespace SuperMediaR.Pipeline.Behaviors
@@ -6,32 +6,24 @@ namespace SuperMediaR.Pipeline.Behaviors
     public class CachingBehavior<TRequest, TResult> : IPipelineBehavior<TRequest, TResult>
         where TRequest : IQuery<TResult>
     {
-        private readonly IMemoryCache _cache;
+        private readonly ICacheProvider? _cacheProvider;
 
-        public CachingBehavior(IMemoryCache cache)
+        public CachingBehavior(IServiceProvider serviceProvider)
         {
-            _cache = cache;
+            _cacheProvider = serviceProvider.GetService<ICacheProvider>();
         }
 
-        public async Task<TResult> Handle(
-            TRequest request,
-            RequestHandlerDelegate<TResult> next,
-            CancellationToken cancellationToken)
+        public async Task<TResult> Handle(TRequest request, RequestHandlerDelegate<TResult> next, CancellationToken cancellationToken)
         {
-            if (request is not ICachableQuery<TResult> cachable)
+            if (_cacheProvider == null || request is not ICachableQuery<TResult> cachable)
                 return await next();
 
-            if (_cache.TryGetValue(cachable.CacheKey, out TResult response))
-                return response;
+            var cached = await _cacheProvider.GetAsync<TResult>(cachable.CacheKey, cancellationToken);
+            if (cached != null)
+                return cached;
 
-            response = await next();
-
-            var options = new MemoryCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = cachable.Expiration ?? TimeSpan.FromMinutes(5)
-            };
-
-            _cache.Set(cachable.CacheKey, response, options);
+            var response = await next();
+            await _cacheProvider.SetAsync(cachable.CacheKey, response, cachable.Expiration, cancellationToken);
 
             return response;
         }

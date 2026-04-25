@@ -23,6 +23,9 @@ namespace SuperMediaR.Pipeline.Behaviors
             // Verifica se o request gerou algum evento
             var events = ExtractEvents(request);
 
+            if (!events.Any())
+                return response;
+
             foreach (var @event in events)
             {
                 // Despacha o evento
@@ -34,12 +37,8 @@ namespace SuperMediaR.Pipeline.Behaviors
 
         private IEnumerable<IEvent> ExtractEvents(TRequest request)
         {
-            // Aqui você extrai os eventos do request, se houver
-            // Caso seu request tenha uma propriedade de eventos ou esteja configurado para gerar eventos
-            if (request is IEventSource eventSource)
-            {
+            if (request is IEventSource eventSource && eventSource.Events.Any())
                 return eventSource.Events;
-            }
 
             return Enumerable.Empty<IEvent>();
         }
