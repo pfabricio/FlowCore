@@ -25,7 +25,7 @@
 ## 📦 Instalação
 
 ```bash
-dotnet add package FlowCore --version 1.1.0
+dotnet add package FlowCore --version 1.1.1
 ```
 
 ---
