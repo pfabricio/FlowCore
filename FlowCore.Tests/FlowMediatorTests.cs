@@ -10,7 +10,7 @@ namespace FlowCore.Tests;
 
 public class FlowMediatorTests
 {
-    private ServiceProvider CreateServiceProvider(Action<IServiceCollection> configure = null)
+    private ServiceProvider CreateServiceProvider(Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddScoped<IFlowMediator, FlowMediator>();

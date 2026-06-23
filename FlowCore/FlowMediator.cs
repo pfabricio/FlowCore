@@ -70,7 +70,7 @@ public class FlowMediator : IFlowMediator
         TRequest request,
         CancellationToken cancellationToken)
     {
-        var requestType = request.GetType();
+        var requestType = request!.GetType();
 
         if (typeof(IQuery<TResult>).IsAssignableFrom(typeof(TRequest)))
         {

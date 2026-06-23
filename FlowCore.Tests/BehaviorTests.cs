@@ -148,7 +148,7 @@ public class CachingBehaviorTests
 
         var response = await behavior.Handle(
             new TestCachableQuery("123"),
-            () => Task.FromResult<string?>(null),
+            () => Task.FromResult<string>(null!),
             CancellationToken.None);
 
         response.Should().BeNull();
