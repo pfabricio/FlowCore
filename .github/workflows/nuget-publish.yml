@@ -56,5 +56,12 @@ jobs:
     - name: Pack
       run: dotnet pack -c Release --no-build --output ./nupkgs
 
+    - name: List packages
+      run: ls -la ./nupkgs/
+
     - name: Push to NuGet
-      run: dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      run: |
+        echo "API Key length: ${#NUGET_API_KEY}"
+        dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
