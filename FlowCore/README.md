@@ -1,5 +1,8 @@
 # FlowCore
 
+![NuGet Version](https://img.shields.io/nuget/v/FlowCore)
+![NuGet Downloads](https://img.shields.io/nuget/dt/FlowCore)
+
 **FlowCore** é um Mediator leve, extensível e moderno para .NET 8+, com suporte a padrões como CQRS, Pipeline Behaviors e integração com EF Core. Ideal para aplicações complexas com separação de responsabilidades clara e escalável.
 
 ## Recursos
@@ -18,6 +21,12 @@
 - **Auto-registro** via Scrutor para handlers e behaviors
 
 ## Instalação
+
+```bash
+dotnet add package FlowCore --version 1.1.0
+```
+
+Ou última versão:
 
 ```bash
 dotnet add package FlowCore
