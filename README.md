@@ -151,6 +151,44 @@ Todos os handlers podem ser testados isoladamente. Basta mockar dependências e 
 
 ---
 
+## 📚 Documentação
+
+A documentação completa está disponível em `docs/`:
+
+### Português (Brasil)
+- [Visão Geral](docs/pt-br/index.md)
+- [Getting Started](docs/pt-br/getting-started.md)
+- [Commands](docs/pt-br/commands.md)
+- [Queries](docs/pt-br/queries.md)
+- [Events](docs/pt-br/events.md)
+- [Pipeline](docs/pt-br/pipeline.md)
+- [Cache](docs/pt-br/cache.md)
+- [Validation](docs/pt-br/validation.md)
+- [Authorization](docs/pt-br/authorization.md)
+- [Logging](docs/pt-br/logging.md)
+- [Transactions](docs/pt-br/transactions.md)
+- [Dependency Injection](docs/pt-br/dependency-injection.md)
+- [Testing](docs/pt-br/testing.md)
+- [Advanced](docs/pt-br/advanced.md)
+
+### English (US)
+- [Overview](docs/us/index.md)
+- [Getting Started](docs/us/getting-started.md)
+- [Commands](docs/us/commands.md)
+- [Queries](docs/us/queries.md)
+- [Events](docs/us/events.md)
+- [Pipeline](docs/us/pipeline.md)
+- [Cache](docs/us/cache.md)
+- [Validation](docs/us/validation.md)
+- [Authorization](docs/us/authorization.md)
+- [Logging](docs/us/logging.md)
+- [Transactions](docs/us/transactions.md)
+- [Dependency Injection](docs/us/dependency-injection.md)
+- [Testing](docs/us/testing.md)
+- [Advanced](docs/us/advanced.md)
+
+---
+
 ## 🤝 Contribuindo
 
 Contribuições são bem-vindas! Sinta-se livre para abrir issues ou pull requests.
