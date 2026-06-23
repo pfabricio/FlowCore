@@ -1,9 +1,14 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 
 namespace FlowCore;
 
+/// <summary>
+/// Mediator principal do FlowCore que implementa CQRS com pipeline de behaviors.
+/// </summary>
 public class FlowMediator : IFlowMediator
 {
     private readonly IServiceProvider _serviceProvider;
@@ -13,55 +18,45 @@ public class FlowMediator : IFlowMediator
         _serviceProvider = serviceProvider;
     }
 
-    // -----------------------------
-    // COMMAND
-    // -----------------------------
-    public async Task<TResult> SendAsync<TResult>(
+    /// <inheritdoc />
+    public Task<TResult> SendAsync<TResult>(
         ICommand<TResult> command,
         CancellationToken cancellationToken = default)
     {
-        return await ExecutePipeline<ICommand<TResult>, TResult>(command, cancellationToken);
+        return ExecutePipeline<ICommand<TResult>, TResult>(command, cancellationToken);
     }
 
-    // -----------------------------
-    // QUERY
-    // -----------------------------
-    public async Task<TResult> QueryAsync<TResult>(
+    /// <inheritdoc />
+    public Task SendAsync(
+        ICommand<Unit> command,
+        CancellationToken cancellationToken = default)
+    {
+        return ExecutePipeline<ICommand<Unit>, Unit>(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<TResult> QueryAsync<TResult>(
         IQuery<TResult> query,
         CancellationToken cancellationToken = default)
     {
-        return await ExecutePipeline<IQuery<TResult>, TResult>(query, cancellationToken);
+        return ExecutePipeline<IQuery<TResult>, TResult>(query, cancellationToken);
     }
 
-    // -----------------------------
-    // PIPELINE EXECUTION
-    // -----------------------------
     private Task<TResult> ExecutePipeline<TRequest, TResult>(
         TRequest request,
         CancellationToken cancellationToken)
         where TRequest : notnull
     {
-        // Pega todos os behaviors dessa Request
         var behaviors = _serviceProvider
             .GetServices<IPipelineBehavior<TRequest, TResult>>()
             .Reverse()
             .ToList();
 
-        // Handler final
-        RequestHandlerDelegate<TResult> handler = async () =>
+        RequestHandlerDelegate<TResult> handler = () =>
         {
-            var handlerType = typeof(ICommandHandler<,>);
-            if (typeof(IQuery<TResult>).IsAssignableFrom(typeof(TRequest)))
-                handlerType = typeof(IQueryHandler<,>);
-
-            var closed = handlerType.MakeGenericType(request.GetType(), typeof(TResult));
-
-            dynamic instance = _serviceProvider.GetRequiredService(closed);
-
-            return await instance.HandleAsync((dynamic)request, cancellationToken);
+            return InvokeHandler<TRequest, TResult>(request, cancellationToken);
         };
 
-        // Vai encaixando os behaviors em cadeia
         foreach (var behavior in behaviors)
         {
             var next = handler;
@@ -71,15 +66,61 @@ public class FlowMediator : IFlowMediator
         return handler();
     }
 
-    // -----------------------------
-    // EVENTS
-    // -----------------------------
+    private Task<TResult> InvokeHandler<TRequest, TResult>(
+        TRequest request,
+        CancellationToken cancellationToken)
+    {
+        var requestType = request.GetType();
+
+        if (typeof(IQuery<TResult>).IsAssignableFrom(typeof(TRequest)))
+        {
+            var handlerType = typeof(IQueryHandler<,>).MakeGenericType(requestType, typeof(TResult));
+            var handler = _serviceProvider.GetRequiredService(handlerType);
+            return InvokeHandleAsync<TResult>(handler, request, cancellationToken);
+        }
+
+        var commandHandlerType = typeof(ICommandHandler<,>).MakeGenericType(requestType, typeof(TResult));
+        var commandHandler = _serviceProvider.GetRequiredService(commandHandlerType);
+        return InvokeHandleAsync<TResult>(commandHandler, request, cancellationToken);
+    }
+
+    private static async Task<TResult> InvokeHandleAsync<TResult>(
+        object handler,
+        object request,
+        CancellationToken cancellationToken)
+    {
+        var method = handler.GetType().GetMethod("HandleAsync")
+            ?? throw new InvalidOperationException(
+                $"Handler {handler.GetType().Name} does not have a HandleAsync method.");
+
+        try
+        {
+            var task = (Task<TResult>)(method.Invoke(handler, new[] { request, cancellationToken })
+                ?? throw new InvalidOperationException(
+                    $"Handler {handler.GetType().Name}.HandleAsync returned null."));
+            return await task;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
-        var handlerType = typeof(IEventHandler<>).MakeGenericType(@event.GetType());
+        var eventType = @event.GetType();
+        var handlerType = typeof(IEventHandler<>).MakeGenericType(eventType);
         var handlers = _serviceProvider.GetServices(handlerType);
 
         foreach (var handler in handlers)
-            await ((dynamic)handler).HandleAsync((dynamic)@event, cancellationToken);
+        {
+            var method = handler!.GetType().GetMethod("HandleAsync")
+                ?? throw new InvalidOperationException(
+                    $"EventHandler {handler.GetType().Name} does not have a HandleAsync method.");
+
+            await (Task)method.Invoke(handler, new object[] { @event, cancellationToken })!;
+        }
     }
 }

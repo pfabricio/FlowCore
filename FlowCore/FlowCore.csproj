@@ -5,16 +5,24 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<LangVersion>12</LangVersion>
 
 		<!-- Informações de pacote -->
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>1.0.5</Version>
+		<Version>1.1.0</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
-		<Description>Mediador modular com pipeline extensível, CQRS e behaviors.</Description>
-		<PackageTags>mediator cqrs pipeline validation</PackageTags>
+		<Description>Mediator CQRS leve e extensível para .NET 8+ com pipeline de behaviors, suporte a Commands, Queries, Events, validação, cache e transações.</Description>
+		<PackageTags>mediator cqrs pipeline validation caching transactions events dotnet</PackageTags>
+		<PackageReleaseNotes>
+			- Removido uso de dynamic para maior performance e type safety
+			- EF Core agora é opcional (transações são um módulo separado)
+			- Adicionado suporte a ICommand sem retorno (Unit)
+			- Corrigido CachingBehavior para tratar valores null
+			- Adicionada documentação XML completa
+		</PackageReleaseNotes>
 
 		<!-- Opcional, mas recomendado -->
 		<RepositoryUrl>https://github.com/pfabricio/FlowCore</RepositoryUrl>
@@ -24,19 +32,30 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<!-- Gerar documentação XML -->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);1591</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="Core\Interfaces\IAuthorizationRule.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="FluentValidation" Version="11.11.0" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.15" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
 		<PackageReference Include="Scrutor" Version="6.0.1" />
 		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!-- EF Core é opcional - necessário apenas para TransactionScopeBehavior -->
+	<ItemGroup Condition="'$(IncludeEFCore)' == 'true' OR '$(IncludeEFCore)' == ''">
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.15" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(IncludeEFCore)' == 'false'">
+		<Compile Remove="Pipeline\Behaviors\TransactionScopeBehavior.cs" />
+		<Compile Remove="Pipeline\Behaviors\DbContextResolver.cs" />
+		<Compile Remove="Core\Interfaces\IDbContextResolver.cs" />
+		<Compile Remove="Extensions\ServiceCollectionExtensions.cs" />
 	</ItemGroup>
 
 </Project>

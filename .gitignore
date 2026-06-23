@@ -101,3 +101,6 @@ $RECYCLE.BIN/
 .env
 .env.local
 .env.*.local
+
+# API Keys - nunca commitar
+api-key/
