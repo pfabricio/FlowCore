@@ -23,7 +23,7 @@
 ## Instalação
 
 ```bash
-dotnet add package FlowCore --version 1.1.1
+dotnet add package FlowCore --version 1.1.3
 ```
 
 Ou última versão:

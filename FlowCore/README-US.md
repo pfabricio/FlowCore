@@ -17,7 +17,7 @@
 
 ## 📥 Installation
 ```bash
-dotnet add package FlowCore --version 1.1.1
+dotnet add package FlowCore --version 1.1.3
 ```
 
 ## ⚙️ Pipeline Behaviors (execution order)

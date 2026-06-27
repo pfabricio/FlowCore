@@ -11,7 +11,7 @@
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>1.1.2</Version>
+		<Version>1.1.3</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>Mediator CQRS leve e extensível para .NET 8+ com pipeline de behaviors, suporte a Commands, Queries, Events, validação, cache e transações.</Description>
