@@ -11,12 +11,13 @@
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>1.1.1</Version>
+		<Version>1.1.2</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>Mediator CQRS leve e extensível para .NET 8+ com pipeline de behaviors, suporte a Commands, Queries, Events, validação, cache e transações.</Description>
 		<PackageTags>mediator cqrs pipeline validation caching transactions events dotnet</PackageTags>
 		<PackageReleaseNotes>
+			- Traduzido para inglês o README
 			- Removido uso de dynamic para maior performance e type safety
 			- EF Core agora é opcional (transações são um módulo separado)
 			- Adicionado suporte a ICommand sem retorno (Unit)
@@ -31,7 +32,7 @@
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
-		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageReadmeFile>README-US.md</PackageReadmeFile>
 
 		<!-- Gerar documentação XML -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -43,7 +44,7 @@
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
 		<PackageReference Include="Scrutor" Version="6.0.1" />
-		<None Include="README.md" Pack="true" PackagePath="\" />
+		<None Include="README-US.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 	<!-- EF Core é opcional - necessário apenas para TransactionScopeBehavior -->
