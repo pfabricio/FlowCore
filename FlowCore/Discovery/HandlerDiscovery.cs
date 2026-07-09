@@ -20,6 +20,7 @@ internal sealed class HandlerDiscovery
         return DiscoverWithReflection(assemblies);
     }
 
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, "FlowCore.Generated.GeneratedHandlerRegistry", "FlowCore")]
     private static HandlerRegistry? TryLoadGeneratedRegistry()
     {
         try

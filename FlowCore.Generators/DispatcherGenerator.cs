@@ -42,16 +42,18 @@ public sealed class DispatcherGenerator : IIncrementalGenerator
             if (openGenericName == CommandHandlerType)
             {
                 var args = iface.TypeArguments;
+                var ifaceFullName = $"FlowCore.Core.Interfaces.ICommandHandler<{args[0].ToDisplayString()}, {args[1].ToDisplayString()}>";
                 return new DispatchInfo(
                     args[0].Name, args[0].ToDisplayString(),
-                    args[1].ToDisplayString());
+                    args[1].ToDisplayString(), ifaceFullName);
             }
             if (openGenericName == QueryHandlerType)
             {
                 var args = iface.TypeArguments;
+                var ifaceFullName = $"FlowCore.Core.Interfaces.IQueryHandler<{args[0].ToDisplayString()}, {args[1].ToDisplayString()}>";
                 return new DispatchInfo(
                     args[0].Name, args[0].ToDisplayString(),
-                    args[1].ToDisplayString());
+                    args[1].ToDisplayString(), ifaceFullName);
             }
         }
 
@@ -74,6 +76,7 @@ public sealed class DispatcherGenerator : IIncrementalGenerator
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Threading;");
         sb.AppendLine("using System.Threading.Tasks;");
+        sb.AppendLine("using FlowCore.Core.Interfaces;");
         sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
         sb.AppendLine();
         sb.AppendLine("namespace FlowCore.Generated");
@@ -99,7 +102,7 @@ public sealed class DispatcherGenerator : IIncrementalGenerator
                 sb.AppendLine($"            else if (request is {h.RequestFullName} {h.RequestVar})");
             }
             sb.AppendLine("            {");
-            sb.AppendLine($"                var handler = services.GetRequiredService<I{h.RequestName}Handler>();");
+            sb.AppendLine($"                var handler = services.GetRequiredService<{h.HandlerInterfaceFullName}>();");
             sb.AppendLine($"                return await handler.HandleAsync({h.RequestVar}, cancellationToken);");
             sb.AppendLine("            }");
         }
@@ -115,7 +118,8 @@ public sealed class DispatcherGenerator : IIncrementalGenerator
     private sealed record DispatchInfo(
         string RequestName,
         string RequestFullName,
-        string ResponseFullName)
+        string ResponseFullName,
+        string HandlerInterfaceFullName)
     {
         public string RequestVar => $"req{RequestName}";
     }

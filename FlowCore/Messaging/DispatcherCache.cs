@@ -28,36 +28,14 @@ internal sealed class DispatcherCache
 {
     private readonly ConcurrentDictionary<Type, IEventHandlerInvoker> _cache = new();
 
+    [RequiresDynamicCode("Invoker caching uses MakeGenericType. Use Source Generators for AOT compatibility.")]
+    [RequiresUnreferencedCode("Invoker caching uses MakeGenericType. Use Source Generators for AOT compatibility.")]
     public IEventHandlerInvoker GetOrCreate(Type eventType)
     {
         return _cache.GetOrAdd(eventType, static type =>
         {
-            if (TryResolveFromDi(type, out var invoker))
-                return invoker;
-
             return CreateInvokerWithReflection(type);
         });
-    }
-
-    private static bool TryResolveFromDi(Type eventType, [NotNullWhen(true)] out IEventHandlerInvoker? invoker)
-    {
-        invoker = null;
-
-        try
-        {
-            var genericInvokerType = typeof(EventHandlerInvoker<>).MakeGenericType(eventType);
-
-            if (Activator.CreateInstance(genericInvokerType) is IEventHandlerInvoker created)
-            {
-                invoker = created;
-                return true;
-            }
-        }
-        catch
-        {
-        }
-
-        return false;
     }
 
     [RequiresDynamicCode("The fallback invoker uses MakeGenericType and Activator.CreateInstance. Use Source Generators for AOT compatibility.")]

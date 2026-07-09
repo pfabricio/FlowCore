@@ -102,18 +102,18 @@
 
 ### Core
 ```bash
-dotnet add package FlowCore --version 2.2.0
+dotnet add package FlowCore --version 2.2.1
 ```
 
 ### Providers
 ```bash
-dotnet add package FlowCore.RabbitMQ --version 2.2.0
-dotnet add package FlowCore.Kafka --version 2.2.0
+dotnet add package FlowCore.RabbitMQ --version 2.2.1
+dotnet add package FlowCore.Kafka --version 2.2.1
 ```
 
 ### Testing
 ```bash
-dotnet add package FlowCore.Testing --version 2.2.0
+dotnet add package FlowCore.Testing --version 2.2.1
 ```
 
 ---
@@ -269,7 +269,7 @@ builder.Services.AddFlowCoreSagaListener();
 
 ## 🧪 Testing
 
-21 unit tests covering Mediator, Behaviors, DI, EventBus, Serialization, Retry, DLQ, Outbox, Inbox, Tracing, Saga and Scheduling.
+131 unit tests covering Mediator, Behaviors, DI, EventBus, Serialization, Retry, DLQ, Outbox, Inbox, Tracing, Saga, Scheduling, DispatcherCache, Pipeline Integration, and Hosting.
 
 ```bash
 dotnet test

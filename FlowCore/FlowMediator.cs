@@ -12,6 +12,7 @@ public class FlowMediator : IFlowMediator
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IEventBus _eventBus;
+    private static readonly GeneratedDispatcherCache _generatedDispatcher = new();
 
     public FlowMediator(IServiceProvider serviceProvider, IEventBus eventBus)
     {
@@ -66,65 +67,27 @@ public class FlowMediator : IFlowMediator
         return await handler();
     }
 
-    private Task<TResult> InvokeHandler<TRequest, TResult>(
+    private async Task<TResult> InvokeHandler<TRequest, TResult>(
         TRequest request,
         ExecutionScope scope)
     {
+        var generatedResult = await _generatedDispatcher.TryDispatchAsync<TResult>(
+            request!, _serviceProvider, scope.CancellationToken);
+        if (generatedResult.IsSuccess)
+            return generatedResult.Value;
+
         var requestType = request!.GetType();
 
         if (typeof(IQuery<TResult>).IsAssignableFrom(typeof(TRequest)))
         {
             var handlerType = typeof(IQueryHandler<,>).MakeGenericType(requestType, typeof(TResult));
             var handler = _serviceProvider.GetRequiredService(handlerType);
-            return InvokeHandleAsync<TResult>(handler, request, scope.CancellationToken);
+            return await InvokeHandleWithReflectionAsync<TResult>(handler, request, scope.CancellationToken);
         }
 
         var commandHandlerType = typeof(ICommandHandler<,>).MakeGenericType(requestType, typeof(TResult));
         var commandHandler = _serviceProvider.GetRequiredService(commandHandlerType);
-        return InvokeHandleAsync<TResult>(commandHandler, request, scope.CancellationToken);
-    }
-
-    private static async Task<TResult> InvokeHandleAsync<TResult>(
-        object handler,
-        object request,
-        CancellationToken cancellationToken)
-    {
-        if (TryDispatchWithGenerated<TResult>(handler, request, cancellationToken, out var result))
-            return result;
-
-        return await InvokeHandleWithReflectionAsync<TResult>(handler, request, cancellationToken);
-    }
-
-    private static bool TryDispatchWithGenerated<TResult>(
-        object handler,
-        object request,
-        CancellationToken cancellationToken,
-        out TResult result)
-    {
-        result = default!;
-
-        try
-        {
-            var handleMethod = handler.GetType().GetMethod("HandleAsync",
-                [request.GetType(), typeof(CancellationToken)]);
-
-            if (handleMethod is null)
-                return false;
-
-            if (handleMethod.ReturnType.IsGenericType &&
-                handleMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
-            {
-                var task = (Task<TResult>)handleMethod.Invoke(handler, [request, cancellationToken])!;
-                result = task.GetAwaiter().GetResult();
-                return true;
-            }
-
-            return false;
-        }
-        catch
-        {
-            return false;
-        }
+        return await InvokeHandleWithReflectionAsync<TResult>(commandHandler, request, scope.CancellationToken);
     }
 
     [RequiresDynamicCode("The fallback handler invoker uses reflection. Use Source Generators for AOT compatibility.")]
@@ -155,5 +118,97 @@ public class FlowMediator : IFlowMediator
     public Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
         return _eventBus.PublishAsync(@event, cancellationToken);
+    }
+
+    private sealed class GeneratedDispatcherCache
+    {
+        private Func<object, IServiceProvider, CancellationToken, ValueTask<object?>>? _dispatchFunc;
+        private bool _initialized;
+
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, "FlowCore.Generated.GeneratedDispatcher", "FlowCore")]
+        public async ValueTask<DispatchResult<TResult>> TryDispatchAsync<TResult>(
+            object request,
+            IServiceProvider services,
+            CancellationToken cancellationToken)
+        {
+            var func = LazyInitialize();
+            if (func is null)
+                return DispatchResult<TResult>.NotHandled;
+
+            try
+            {
+                var result = await func(request, services, cancellationToken);
+                return DispatchResult<TResult>.Success((TResult)result!);
+            }
+            catch (InvalidOperationException)
+            {
+                return DispatchResult<TResult>.NotHandled;
+            }
+        }
+
+        private Func<object, IServiceProvider, CancellationToken, ValueTask<object?>>? LazyInitialize()
+        {
+            if (_initialized)
+                return _dispatchFunc;
+
+            lock (this)
+            {
+                if (_initialized)
+                    return _dispatchFunc;
+
+                _initialized = true;
+
+                try
+                {
+                    var generatedType = Type.GetType(
+                        "FlowCore.Generated.GeneratedDispatcher, FlowCore",
+                        throwOnError: false);
+
+                    if (generatedType is null)
+                    {
+                        generatedType = AppDomain.CurrentDomain.GetAssemblies()
+                            .SelectMany(a => a.GetTypes())
+                            .FirstOrDefault(t =>
+                                t.FullName == "FlowCore.Generated.GeneratedDispatcher");
+                    }
+
+                    if (generatedType is null)
+                        return null;
+
+                    var method = generatedType.GetMethod("DispatchAsync",
+                        BindingFlags.Static | BindingFlags.Public,
+                        [typeof(object), typeof(IServiceProvider), typeof(CancellationToken)]);
+
+                    if (method is null)
+                        return null;
+
+                    _dispatchFunc = (obj, sp, ct) =>
+                    {
+                        var task = (ValueTask<object?>)method.Invoke(null, [obj, sp, ct])!;
+                        return task;
+                    };
+                }
+                catch
+                {
+                }
+
+                return _dispatchFunc;
+            }
+        }
+    }
+
+    private readonly struct DispatchResult<T>
+    {
+        public bool IsSuccess { get; }
+        public T Value { get; }
+
+        private DispatchResult(bool isSuccess, T value)
+        {
+            IsSuccess = isSuccess;
+            Value = value;
+        }
+
+        public static DispatchResult<T> Success(T value) => new(true, value);
+        public static DispatchResult<T> NotHandled => new(false, default!);
     }
 }

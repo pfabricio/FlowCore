@@ -89,4 +89,4 @@ var userId = await mediator.SendAsync(new CreateUserCommand("John", "john@email.
 
 ---
 
-**Version**: 2.2.0 | **License**: MIT
+**Version**: 2.2.1 | **License**: MIT
