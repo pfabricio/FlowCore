@@ -1,175 +1,171 @@
 # 📦 FlowCore
 
-**FlowCore** is a lightweight, extensible, and modern Mediator for .NET 8+, supporting patterns such as CQRS, Pipeline Behaviors, and EF Core integration.
+**FlowCore** is a .NET 8+ framework for CQRS, Event-Driven, and Microservices architectures. It provides an extensible Mediator with Pipeline Behaviors, an EventBus with multiple messaging providers (RabbitMQ, Kafka, InMemory), plus Outbox, Inbox, Saga Orchestration, Retry, Dead Letter, Scheduled Messages, and OpenTelemetry support.
 
-## 🎯 Main Features
-- Support for **Commands**, **Queries**, and **Events**
-- **Pipeline Behaviors** with:
-  - Validation (via FluentValidation)
-  - Logging with execution time
-  - Caching for queries
-  - Transactions with EF Core (optional)
-  - Event dispatcher after execution
-- Support for multiple **Handlers** (multicast for events)
-- Ready for **Dependency Injection**
-- CQRS separation between read and write
-- **Auto-registration** via Scrutor
+## 🎯 Features
+
+### CQRS + Pipeline
+- **Commands**, **Queries**, and **Events**
+- Pipeline Behaviors: Logging, Validation (FluentValidation), Caching, Transactions (EF Core), Event Dispatcher
+- Auto-discovery via Scrutor
+
+### EventBus
+- `IEventBus` — single abstraction for event publishing
+- `InMemoryEventBus` — default provider, reflection-free compiled delegates
+- Thread-safe `DispatcherCache` (Singleton)
+- `DiagnosticsEventBus` — decorator with tracing and metrics
+
+### Messaging Providers
+- **RabbitMQ** — `AddRabbitMQ()` with publish/consumer worker, auto-reconnect
+- **Kafka** — `AddKafka()` with publish/consumer groups, managed commits
+
+### Resilience
+- **Retry** — `IRetryPolicy` with configurable strategies (Immediate, ExponentialBackoff)
+- **Dead Letter Queue** — `IDeadLetterWriter` for permanently failed messages
+
+### Transactional Patterns
+- **Outbox** — reliable event publishing with `IOutboxStore` + `OutboxWorker`
+- **Inbox** — idempotent processing with `IInboxStore` (deduplication by MessageId)
+
+### Observability
+- **OpenTelemetry** — `IActivityFactory` + `IMetricRecorder` (no-op by default)
+- Integration with `System.Diagnostics.Activity` and `System.Diagnostics.Metrics`
+- Distributed tracing with CorrelationId propagation
+
+### Orchestration
+- **Saga** — `SagaCoordinator` with steps, reverse-order compensation, state persistence
+- **Scheduled Messages** — absolute/relative scheduling with `IMessageScheduler` + `SchedulerWorker`
 
 ## 📥 Installation
+
+### Core
 ```bash
-dotnet add package FlowCore --version 1.1.3
+dotnet add package FlowCore --version 2.0.0
 ```
 
-## ⚙️ Pipeline Behaviors (execution order)
-| Order | Behavior | Function |
-|-------|----------|----------|
-| 1 | `LoggingBehavior` | Log input/output with timing |
-| 2 | `ValidationBehavior` | Validates with FluentValidation |
-| 3 | `CachingBehavior` | Cache for queries |
-| 4 | `TransactionScopeBehavior` | EF Core transaction (optional) |
-| 5 | `EventDispatcherBehavior` | Dispatches events after handler |
+### Providers
+```bash
+dotnet add package FlowCore.RabbitMQ --version 2.0.0
+dotnet add package FlowCore.Kafka --version 2.0.0
+```
 
-## 🔧 Main Interface
+## ⚙️ Configuration
+
+### Basic
 ```csharp
-public interface IFlowMediator
-{
-    Task<TResult> SendAsync<TResult>(ICommand<TResult> command, CancellationToken ct = default);
-    Task SendAsync(ICommand<Unit> command, CancellationToken ct = default);
-    Task<TResult> QueryAsync<TResult>(IQuery<TResult> query, CancellationToken ct = default);
-    Task PublishAsync(IEvent @event, CancellationToken ct = default);
-}
+builder.Services.AddFlowCore();
 ```
 
-## 📚 Usage Examples
+### With RabbitMQ
+```csharp
+builder.Services
+    .AddFlowCore()
+    .AddRabbitMQ(options =>
+    {
+        options.Host = "localhost";
+        options.Username = "guest";
+        options.Password = "guest";
+    });
+```
 
-### 1️⃣ Defining a Command
+### With Kafka
+```csharp
+builder.Services
+    .AddFlowCore()
+    .AddKafka(options =>
+    {
+        options.BootstrapServers = "localhost:9092";
+        options.ConsumerGroup = "my-service";
+    });
+```
+
+### Optional modules
+```csharp
+builder.Services
+    .AddFlowCore()
+    .AddFlowCoreTransactions()
+    .AddFlowCoreOutbox()
+    .AddFlowCoreDiagnostics()
+    .AddFlowCoreSagaListener()
+    .AddFlowCoreScheduler();
+```
+
+## 💡 Usage Examples
+
+### Commands and Queries
 ```csharp
 public record CreateUserCommand(string Name, string Email) : ICommand<Guid>;
 
 public class CreateUserHandler : ICommandHandler<CreateUserCommand, Guid>
 {
-    public Task<Guid> Handle(CreateUserCommand request, CancellationToken ct)
+    public async Task<Guid> HandleAsync(CreateUserCommand command, CancellationToken ct)
     {
-        // Business logic
-        return Task.FromResult(Guid.NewGuid());
+        var user = new User { Id = Guid.NewGuid(), Name = command.Name, Email = command.Email };
+        return user.Id;
     }
 }
+
+var userId = await _mediator.SendAsync(new CreateUserCommand("John", "john@email.com"));
 ```
 
-### 2️⃣ Defining a Query
-```csharp
-public record GetUserByIdQuery(Guid Id) : IQuery<UserDto>;
-
-public class GetUserByIdHandler : IQueryHandler<GetUserByIdQuery, UserDto>
-{
-    public Task<UserDto> Handle(GetUserByIdQuery request, CancellationToken ct)
-    {
-        // Search logic
-        return Task.FromResult(new UserDto { Id = request.Id, Name = "John" });
-    }
-}
-```
-
-### 3️⃣ Defining an Event
+### Events
 ```csharp
 public record UserCreatedEvent(Guid UserId) : IEvent;
 
 public class UserCreatedHandler : IEventHandler<UserCreatedEvent>
 {
-    public Task Handle(UserCreatedEvent notification, CancellationToken ct)
+    public Task HandleAsync(UserCreatedEvent @event, CancellationToken ct)
     {
-        // Send email, log, etc.
+        Console.WriteLine($"User created: {@event.UserId}");
         return Task.CompletedTask;
     }
 }
+
+await _eventBus.PublishAsync(new UserCreatedEvent(userId));
 ```
 
-### 4️⃣ Registering in DI
+### Scheduled Messages
 ```csharp
-builder.Services.AddFlowCore(cfg =>
-{
-    cfg.RegisterHandlersFromAssemblyOf<Program>();
-});
+await _scheduler.ScheduleAfterAsync(
+    new OrderExpiredEvent(orderId),
+    TimeSpan.FromHours(2));
 ```
 
-### 5️⃣ Using the Mediator
+### Saga
 ```csharp
-public class UserService(IFlowMediator mediator)
+public class OrderSaga : Saga
 {
-    public async Task<Guid> CreateUser(string name, string email)
+    public override Task DefineStepsAsync()
     {
-        return await mediator.SendAsync(new CreateUserCommand(name, email));
-    }
+        AddStep<OrderPlacedEvent>("ReserveInventory", async (evt, ct) =>
+        {
+            // execute
+        }, compensate: async (evt, ct) =>
+        {
+            // compensate if later step fails
+        });
 
-    public async Task<UserDto> GetUser(Guid id)
-    {
-        return await mediator.QueryAsync(new GetUserByIdQuery(id));
-    }
+        AddStep<PaymentProcessedEvent>("ProcessPayment", async (evt, ct) =>
+        {
+            // execute
+        });
 
-    public async Task NotifyCreation(Guid userId)
-    {
-        await mediator.PublishAsync(new UserCreatedEvent(userId));
-    }
-}
-```
-
-## 🔐 Validation with FluentValidation
-```csharp
-public class CreateUserValidator : AbstractValidator<CreateUserCommand>
-{
-    public CreateUserValidator()
-    {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Email).EmailAddress();
-    }
-}
-```
-
-## 💾 Caching Configuration
-```csharp
-builder.Services.AddFlowCore(cfg =>
-{
-    cfg.RegisterHandlersFromAssemblyOf<Program>();
-    cfg.UseCaching(new CachingOptions
-    {
-        DefaultExpiration = TimeSpan.FromMinutes(5),
-        CacheKeyGenerator = new CustomCacheKeyGenerator()
-    });
-});
-```
-
-## 🔄 Transactions with EF Core
-```csharp
-builder.Services.AddFlowCore(cfg =>
-{
-    cfg.RegisterHandlersFromAssemblyOf<Program>();
-    cfg.UseTransactionScope(new TransactionOptions
-    {
-        IsolationLevel = IsolationLevel.ReadCommitted
-    });
-});
-```
-
-## 🎨 Custom Behaviors
-```csharp
-public class MyCustomBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-{
-    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
-    {
-        // Before handler
-        var response = await next();
-        // After handler
-        return response;
+        return Task.CompletedTask;
     }
 }
 
-// Register
-builder.Services.AddFlowCore(cfg =>
-{
-    cfg.RegisterHandlersFromAssemblyOf<Program>();
-    cfg.AddBehavior(typeof(MyCustomBehavior<,>));
-});
+builder.Services.AddSaga<OrderSaga>();
+builder.Services.AddFlowCoreSagaListener();
+```
+
+## ✅ Tests
+
+21 unit tests covering Mediator, Behaviors, DI, EventBus, Serialization, Retry, DLQ, Outbox, Inbox, Tracing, Saga, and Scheduling.
+
+```bash
+dotnet test
 ```
 
 ## 📄 License
-This project is licensed under the MIT License.
+
+MIT License

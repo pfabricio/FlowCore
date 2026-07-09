@@ -1,5 +1,7 @@
 using FluentAssertions;
 using FlowCore.Core.Interfaces;
+using FlowCore.Diagnostics;
+using FlowCore.Messaging;
 using FlowCore.Pipeline.Behaviors;
 using FlowCore.Tests.Helpers;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,29 @@ public class ServiceCollectionExtensionsTests
         var mediator = provider.GetService<IFlowMediator>();
         mediator.Should().NotBeNull();
         mediator.Should().BeOfType<FlowMediator>();
+    }
+
+    [Fact]
+    public void AddFlowCore_ShouldRegisterEventBus()
+    {
+        var services = new ServiceCollection();
+        services.AddFlowCore();
+        var provider = services.BuildServiceProvider();
+
+        var eventBus = provider.GetService<IEventBus>();
+        eventBus.Should().NotBeNull();
+        eventBus.Should().BeOfType<DiagnosticsEventBus>();
+        var innerField = typeof(DiagnosticsEventBus).GetField("_inner",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var innerBus = innerField?.GetValue(eventBus);
+        innerBus.Should().BeOfType<InMemoryEventBus>();
+
+        var cache = provider.GetService<DispatcherCache>();
+        cache.Should().NotBeNull();
+
+        var serializer = provider.GetService<IMessageSerializer>();
+        serializer.Should().NotBeNull();
+        serializer.Should().BeOfType<SystemTextJsonSerializer>();
     }
 
     [Fact]

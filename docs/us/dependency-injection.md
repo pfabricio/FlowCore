@@ -12,8 +12,6 @@ FlowCore is built on top of .NET's Dependency Injection system. All components a
 
 ## 🎯 Basic Configuration
 
-### In Program.cs
-
 ```csharp
 // Register FlowCore
 builder.Services.AddFlowCore();
@@ -21,6 +19,42 @@ builder.Services.AddFlowCore();
 // Register DbContext
 builder.Services.AddDbContext<MyDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+```
+
+---
+
+## 📋 Messaging Providers
+
+### RabbitMQ
+```csharp
+builder.Services.AddFlowCore().AddRabbitMQ(options =>
+{
+    options.Host = "localhost";
+    options.Username = "guest";
+    options.Password = "guest";
+});
+```
+
+### Kafka
+```csharp
+builder.Services.AddFlowCore().AddKafka(options =>
+{
+    options.BootstrapServers = "localhost:9092";
+    options.ConsumerGroup = "my-service";
+});
+```
+
+---
+
+## 📋 Optional Modules
+
+```csharp
+builder.Services.AddFlowCore()
+    .AddFlowCoreTransactions()      // TransactionScopeBehavior (EF Core)
+    .AddFlowCoreOutbox()             // Outbox Worker (BackgroundService)
+    .AddFlowCoreDiagnostics()        // System.Diagnostics Activity + Metrics
+    .AddFlowCoreSagaListener()       // Saga event listener
+    .AddFlowCoreScheduler();         // Scheduled Messages Worker
 ```
 
 ---
@@ -37,7 +71,6 @@ builder.Services.AddFlowCore();
 ### Behaviors
 
 ```csharp
-// Register behaviors
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
@@ -46,14 +79,12 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CachingBehavi
 ### Validators
 
 ```csharp
-// Register validators via FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<CreateUserCommandValidator>();
 ```
 
 ### Cache
 
 ```csharp
-// In-memory cache
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ICacheProvider, MemoryCacheProvider>();
 ```
@@ -63,19 +94,16 @@ builder.Services.AddSingleton<ICacheProvider, MemoryCacheProvider>();
 ## 🔧 Scopes and Lifetimes
 
 ### Singleton
-
 ```csharp
 builder.Services.AddSingleton<ICacheProvider, MemoryCacheProvider>();
 ```
 
 ### Scoped
-
 ```csharp
 builder.Services.AddScoped<IMyService, MyService>();
 ```
 
 ### Transient
-
 ```csharp
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 ```
@@ -83,8 +111,6 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavi
 ---
 
 ## 🚀 Usage
-
-### Dependency Injection
 
 ```csharp
 public class UserService
@@ -104,8 +130,6 @@ public class UserService
     }
 }
 ```
-
-### Injection in Controllers
 
 ```csharp
 [ApiController]
@@ -133,7 +157,7 @@ public class UsersController : ControllerBase
 ## 📝 Best Practices
 
 1. **Use automatic registration** - when possible, let FlowCore scan assemblies
-2. **Respect scopes** - DbContext should be Scoped, Mediator can be Singleton
+2. **Respect scopes** - DbContext should be Scoped, EventBus can be Singleton
 3. **Avoid circular dependencies** - refactor your design if necessary
 4. **Use interfaces** - for easier testing and decoupling
 5. **Test your container** - ensure all services are registered

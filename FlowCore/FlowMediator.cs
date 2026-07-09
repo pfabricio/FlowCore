@@ -6,16 +6,15 @@ using System.Runtime.ExceptionServices;
 
 namespace FlowCore;
 
-/// <summary>
-/// Mediator principal do FlowCore que implementa CQRS com pipeline de behaviors.
-/// </summary>
 public class FlowMediator : IFlowMediator
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IEventBus _eventBus;
 
-    public FlowMediator(IServiceProvider serviceProvider)
+    public FlowMediator(IServiceProvider serviceProvider, IEventBus eventBus)
     {
         _serviceProvider = serviceProvider;
+        _eventBus = eventBus;
     }
 
     /// <inheritdoc />
@@ -108,19 +107,8 @@ public class FlowMediator : IFlowMediator
     }
 
     /// <inheritdoc />
-    public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
+    public Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
-        var eventType = @event.GetType();
-        var handlerType = typeof(IEventHandler<>).MakeGenericType(eventType);
-        var handlers = _serviceProvider.GetServices(handlerType);
-
-        foreach (var handler in handlers)
-        {
-            var method = handler!.GetType().GetMethod("HandleAsync")
-                ?? throw new InvalidOperationException(
-                    $"EventHandler {handler.GetType().Name} does not have a HandleAsync method.");
-
-            await (Task)method.Invoke(handler, new object[] { @event, cancellationToken })!;
-        }
+        return _eventBus.PublishAsync(@event, cancellationToken);
     }
 }

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>12</LangVersion>
+		<AssemblyName>FlowCore.Kafka</AssemblyName>
+		<RootNamespace>FlowCore.Kafka</RootNamespace>
+		<PackageId>FlowCore.Kafka</PackageId>
+		<Version>2.0.0</Version>
+		<Authors>Paulo Fabricio</Authors>
+		<Company>DevSpace</Company>
+		<Description>Apache Kafka messaging provider for FlowCore. Provides KafkaEventBus and KafkaConsumerWorker with consumer groups, envelope validation, retry and DLQ support.</Description>
+		<PackageTags>flowcore kafka messaging events eventbus mediator</PackageTags>
+		<PackageReleaseNotes>
+			- KafkaEventBus com publish assíncrono
+			- KafkaConsumerWorker com consumer groups e commit gerenciado
+			- Integração com RetryHandler e Dead Letter Queue
+			- Suporte a Inbox para processamento idempotente
+		</PackageReleaseNotes>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/pfabricio/FlowCore</RepositoryUrl>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);1591</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Confluent.Kafka" Version="2.8.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\FlowCore\FlowCore.csproj" />
+	</ItemGroup>
+
+</Project>

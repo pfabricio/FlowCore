@@ -1,198 +1,182 @@
 # Advanced — FlowCore
 
-> Advanced FlowCore topics: metrics, multi-database, and advanced options.
+> Advanced topics: EventBus, Retry, DLQ, Outbox, Inbox, Saga, Scheduled Messages and Observability.
 
 ---
 
 ## 📖 Overview
 
-This guide covers advanced FlowCore topics for more complex usage scenarios.
+This guide covers FlowCore's advanced features for distributed and resilient architectures.
 
 ---
 
-## 🔧 ExecutionOptions
+## 🔧 EventBus
 
-### Configuring ExecutionOptions
+### IEventBus
+
+`IEventBus` is the central abstraction for distributed event publishing. The default provider is `InMemoryEventBus`. With `FlowCore.RabbitMQ` and `FlowCore.Kafka` packages, events can be published to external messaging systems.
 
 ```csharp
-builder.Services.AddFlowCore(options =>
-{
-    options.EnableValidation = true;
-    options.EnableLogging = true;
-    options.EnableCaching = true;
-    options.EnableTransactions = true;
-    options.DefaultCacheExpiration = TimeSpan.FromMinutes(10);
-});
+// Publish event
+await _eventBus.PublishAsync(new OrderPlacedEvent(orderId, userId, total));
+
+// Provider is resolved via DI based on configuration
+builder.Services.AddFlowCore().AddRabbitMQ(options => { ... });
 ```
 
-### Custom ExecutionOptions
+### DispatcherCache
+
+Handler resolution uses cached compiled delegates in a thread-safe `DispatcherCache` (Singleton), eliminating Reflection on the hot path.
+
+---
+
+## 🔄 Resilience
+
+### Retry Policy
+
+`IRetryPolicy` defines the retry strategy for failed messages.
 
 ```csharp
-public class CustomFlowCoreOptions
+public class ImmediateRetryPolicy : IRetryPolicy
 {
-    public bool EnableMetrics { get; set; } = true;
-    public string MetricPrefix { get; set; } = "flowcore";
-    public TimeSpan SlowRequestThreshold { get; set; } = TimeSpan.FromSeconds(1);
+    public RetryDecision Evaluate(RetryContext context) =>
+        context.Attempt < 3
+            ? RetryDecision.Retry(TimeSpan.Zero)
+            : RetryDecision.Fail();
+}
+```
+
+### Dead Letter Queue
+
+Messages that exceed the retry limit are sent to DLQ via `IDeadLetterWriter`.
+
+```csharp
+public class InMemoryDeadLetterWriter : IDeadLetterWriter
+{
+    public Task WriteAsync(DeadLetterContext context, CancellationToken ct)
+    {
+        // persist message for later analysis
+    }
 }
 ```
 
 ---
 
-## 📊 Metrics
+## 📦 Outbox
 
-### Configuring Metrics
+The Outbox pattern guarantees reliable event publishing: the message is saved in the store along with the handler transaction, and an `OutboxWorker` (BackgroundService) publishes to EventBus in the background.
 
 ```csharp
-builder.Services.AddFlowCore();
-
-// Add metrics behavior
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(MetricsBehavior<,>));
+builder.Services.AddFlowCore().AddFlowCoreOutbox();
 ```
 
-### Metrics Behavior
+Components:
+- `IOutboxStore` — message storage (InMemory or custom)
+- `OutboxMessage` — entity with Id, Type, Data, Status and Timestamp
+- `OutboxWorker` — processes pending messages in a loop
+
+---
+
+## 📥 Inbox
+
+The Inbox pattern guarantees idempotent processing: received messages are checked by `MessageId` before processing.
+
+The check happens automatically in `ConsumerWorker.ProcessEnvelopeAsync`.
 
 ```csharp
-public class MetricsBehavior<TRequest, TResult> : IPipelineBehavior<TRequest, TResult>
-    where TRequest : notnull
+public interface IInboxStore
 {
-    private readonly ILogger<MetricsBehavior<TRequest, TResult>> _logger;
+    Task<bool> IsMessageProcessedAsync(string messageId, CancellationToken ct);
+    Task MarkAsProcessedAsync(InboxMessage message, CancellationToken ct);
+}
+```
 
-    public MetricsBehavior(ILogger<MetricsBehavior<TRequest, TResult>> logger)
+---
+
+## 🎭 Saga
+
+Saga Orchestration support for coordinating distributed transactions with compensation.
+
+```csharp
+public class OrderSaga : Saga
+{
+    public override Task DefineStepsAsync()
     {
-        _logger = logger;
-    }
-
-    public async Task<TResult> Handle(
-        TRequest request,
-        RequestHandlerDelegate<TResult> next,
-        CancellationToken cancellationToken)
-    {
-        var requestName = typeof(TRequest).Name;
-        var stopwatch = Stopwatch.StartNew();
-
-        try
+        AddStep<OrderPlacedEvent>("ReserveInventory", async (evt, ct) =>
         {
-            var result = await next();
-            stopwatch.Stop();
-
-            _logger.LogInformation("METRIC:{RequestName}:duration:{Duration}ms:status:success",
-                requestName, stopwatch.ElapsedMilliseconds);
-
-            return result;
-        }
-        catch (Exception ex)
+            // main logic
+        }, compensate: async (evt, ct) =>
         {
-            stopwatch.Stop();
+            // compensation logic (reverse order)
+        });
 
-            _logger.LogError("METRIC:{RequestName}:duration:{Duration}ms:status:error:{Error}",
-                requestName, stopwatch.ElapsedMilliseconds, ex.Message);
-            throw;
-        }
+        AddStep<PaymentProcessedEvent>("ProcessPayment", async (evt, ct) =>
+        {
+            // next step
+        });
+
+        return Task.CompletedTask;
     }
 }
+
+// Register
+builder.Services.AddSaga<OrderSaga>();
+builder.Services.AddFlowCoreSagaListener();
 ```
+
+Components:
+- `SagaCoordinator` — orchestrates steps and compensation
+- `ISagaStore` — persists saga state
+- `SagaEventListener` — listens to events and triggers steps
 
 ---
 
-## 🗄️ Multi-Database
+## ⏰ Scheduled Messages
 
-### Configuration for Multiple Databases
-
-```csharp
-builder.Services.AddDbContext<ReadDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("ReadConnection")));
-
-builder.Services.AddDbContext<WriteDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("WriteConnection")));
-```
-
-### Handlers for Different Contexts
+Schedule messages for future publication (absolute or relative).
 
 ```csharp
-public class GetUserByIdQueryHandler : IQueryHandler<GetUserByIdQuery, UserDto>
-{
-    private readonly ReadDbContext _readContext;
+// Schedule for 2 hours from now
+await _scheduler.ScheduleAfterAsync(new OrderExpiredEvent(orderId), TimeSpan.FromHours(2));
 
-    public GetUserByIdQueryHandler(ReadDbContext readContext)
-    {
-        _readContext = readContext;
-    }
-
-    public async Task<UserDto> Handle(GetUserByIdQuery request, CancellationToken cancellationToken)
-    {
-        return await _readContext.Users
-            .Where(u => u.Id == request.Id)
-            .Select(u => new UserDto { Id = u.Id, Name = u.Name })
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("User not found");
-    }
-}
-
-public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, Guid>
-{
-    private readonly WriteDbContext _writeContext;
-
-    public CreateUserCommandHandler(WriteDbContext writeContext)
-    {
-        _writeContext = writeContext;
-    }
-
-    public async Task<Guid> Handle(CreateUserCommand request, CancellationToken cancellationToken)
-    {
-        var user = new User { Id = Guid.NewGuid(), Name = request.Name };
-        _writeContext.Users.Add(user);
-        await _writeContext.SaveChangesAsync(cancellationToken);
-        return user.Id;
-    }
-}
+// Schedule for specific date
+await _scheduler.ScheduleAtAsync(new ReminderEvent(userId), DateTimeOffset.UtcNow.AddDays(1));
 ```
+
+```csharp
+builder.Services.AddFlowCore().AddFlowCoreScheduler();
+```
+
+Components:
+- `IMessageScheduler` — scheduling interface
+- `IScheduledMessageStore` — persisted scheduled messages
+- `SchedulerWorker` — BackgroundService that publishes messages on time
 
 ---
 
-## 🔐 Event Dispatcher Behavior
+## 📊 Observability
 
-### Behavior for Publishing Events
+### DiagnosticsEventBus
+
+Decorator that adds tracing and metrics to the EventBus. No-op by default (zero overhead); enabled with:
 
 ```csharp
-public class EventDispatcherBehavior<TRequest, TResult> : IPipelineBehavior<TRequest, TResult>
-    where TRequest : notnull
-{
-    private readonly IFlowMediator _mediator;
-    private readonly ILogger<EventDispatcherBehavior<TRequest, TResult>> _logger;
-
-    public EventDispatcherBehavior(IFlowMediator mediator, ILogger<EventDispatcherBehavior<TRequest, TResult>> logger)
-    {
-        _mediator = mediator;
-        _logger = logger;
-    }
-
-    public async Task<TResult> Handle(
-        TRequest request,
-        RequestHandlerDelegate<TResult> next,
-        CancellationToken cancellationToken)
-    {
-        var result = await next();
-
-        if (request is ICommand<TResult> command && command.Events?.Any() == true)
-        {
-            foreach (var @event in command.Events)
-            {
-                _logger.LogInformation("Publishing event {EventType}", @event.GetType().Name);
-                await _mediator.PublishAsync(@event, cancellationToken);
-            }
-        }
-
-        return result;
-    }
-}
+builder.Services.AddFlowCore().AddFlowCoreDiagnostics();
 ```
+
+### Activity & Metrics
+
+- `IActivityFactory` / `SystemDiagnosticsActivityFactory` — creates `Activity` for distributed tracing
+- `IMetricRecorder` / `SystemDiagnosticsMetricRecorder` — records metrics via `System.Diagnostics.Metrics`
+- CorrelationId is propagated in the message envelope
 
 ---
 
 ## 📝 Best Practices
 
-1. **Use ExecutionOptions** - to configure global behaviors
-2. **Monitor metrics** - to identify bottlenecks and issues
-3. **Consider multi-database** - to separate read and write operations
-4. **Use Event Dispatcher** - to automate event publishing
-5. **Test advanced scenarios** - ensure complex configurations work
+1. **Use Outbox** to guarantee delivery of critical events
+2. **Configure Retry + DLQ** for resilience against transient failures
+3. **Use Inbox** in consumers for idempotent processing
+4. **Model Sagas** for distributed transactions with compensation
+5. **Enable Diagnostics** for production observability
+6. **Schedule messages** for deferred logic without external cron jobs

@@ -6,8 +6,15 @@
 
 ## 📦 Installation
 
+### Core
 ```bash
-dotnet add package FlowCore --version 1.1.1
+dotnet add package FlowCore --version 2.0.0
+```
+
+### Messaging Providers (optional)
+```bash
+dotnet add package FlowCore.RabbitMQ --version 2.0.0
+dotnet add package FlowCore.Kafka --version 2.0.0
 ```
 
 ---
@@ -33,10 +40,34 @@ builder.Services.AddDbContext<MyDbContext>(options =>
 builder.Services.AddValidatorsFromAssemblyContaining<CreateUserValidator>();
 ```
 
-### 4. Configure `Logging` (optional):
+### 4. Configure providers (optional):
 
 ```csharp
-builder.Services.AddLogging();
+// RabbitMQ
+builder.Services.AddFlowCore().AddRabbitMQ(options =>
+{
+    options.Host = "localhost";
+    options.Username = "guest";
+    options.Password = "guest";
+});
+
+// Kafka
+builder.Services.AddFlowCore().AddKafka(options =>
+{
+    options.BootstrapServers = "localhost:9092";
+    options.ConsumerGroup = "my-service";
+});
+```
+
+### 5. Optional modules:
+
+```csharp
+builder.Services.AddFlowCore()
+    .AddFlowCoreTransactions()      // EF Core transactions
+    .AddFlowCoreOutbox()             // Outbox Worker
+    .AddFlowCoreDiagnostics()        // Tracing + Metrics
+    .AddFlowCoreSagaListener()       // Saga event listener
+    .AddFlowCoreScheduler();         // Scheduled Messages Worker
 ```
 
 ---
@@ -131,5 +162,6 @@ public class UserService
 
 - [Commands](commands.md) - Learn more about commands
 - [Queries](queries.md) - Learn more about queries
+- [Events](events.md) - Events and EventBus
 - [Pipeline](pipeline.md) - Understand behaviors
-- [Cache](cache.md) - Configure cache for queries
+- [Advanced](advanced.md) - EventBus, Saga, Scheduling and more

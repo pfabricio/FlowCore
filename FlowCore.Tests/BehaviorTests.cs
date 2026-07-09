@@ -177,7 +177,8 @@ public class EventDispatcherBehaviorTests
     [Fact]
     public async Task Handle_WithNonEventSource_ShouldCallNext()
     {
-        var behavior = new EventDispatcherBehavior<TestCommand, string>(new ServiceCollection().BuildServiceProvider(),
+        var eventBusMock = new Mock<IEventBus>();
+        var behavior = new EventDispatcherBehavior<TestCommand, string>(eventBusMock.Object,
             new Mock<Microsoft.Extensions.Logging.ILogger<EventDispatcherBehavior<TestCommand, string>>>().Object);
 
         var response = await behavior.Handle(

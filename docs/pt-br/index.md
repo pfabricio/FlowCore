@@ -1,6 +1,6 @@
 # FlowCore — Documentação
 
-> Mediator leve, extensível e moderno para .NET 8+, com suporte a CQRS, Pipeline Behaviors e integração com EF Core.
+> Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator extensível com Pipeline Behaviors, EventBus multi-provider, Outbox, Inbox, Saga, Scheduling, Retry, DLQ e OpenTelemetry.
 
 ---
 
@@ -9,7 +9,7 @@
 | Documento | Descrição |
 |-----------|-----------|
 | [Visão Geral](index.md) | O que é FlowCore, filosofia e features |
-| [Getting Started](getting-started.md) | Instalação, setup e primeira query |
+| [Getting Started](getting-started.md) | Instalação, setup e primeiro comando |
 | [Configuração](configuration.md) | DI, builder, providers, opções globais |
 
 ## 📖 Uso da API
@@ -18,7 +18,7 @@
 |-----------|-----------|
 | [Commands](commands.md) | ICommand, ICommandHandler, SendAsync |
 | [Queries](queries.md) | IQuery, IQueryHandler, QueryAsync |
-| [Events](events.md) | IEvent, IEventHandler, PublishAsync |
+| [Events](events.md) | IEvent, IEventHandler, PublishAsync, IEventBus |
 
 ## 🔧 Extensibilidade
 
@@ -34,7 +34,7 @@
 
 | Documento | Descrição |
 |-----------|-----------|
-| [Transactions](transactions.md) | ExecutionScope, commit, rollback com EF Core |
+| [Transactions](transactions.md) | Transações com EF Core |
 | [Dependency Injection](dependency-injection.md) | Registro de serviços, escopos, lifetimes |
 
 ## 🎯 Avançado
@@ -42,7 +42,7 @@
 | Documento | Descrição |
 |-----------|-----------|
 | [Testing](testing.md) | Testes unitários, mocking, padrões |
-| [Advanced](advanced.md) | Multi-database, ExecutionOptions, Metrics |
+| [Advanced](advanced.md) | EventBus, Retry, Outbox, Inbox, Saga, Scheduling, Metrics |
 
 ---
 
@@ -52,10 +52,23 @@
 // 1. Configurar
 builder.Services.AddFlowCore();
 
-// 2. Criar Command
+// 2. Provider de mensageria (opcional)
+builder.Services.AddFlowCore().AddRabbitMQ(options =>
+{
+    options.Host = "localhost";
+});
+
+// 3. Módulos opcionais
+builder.Services.AddFlowCore()
+    .AddFlowCoreOutbox()
+    .AddFlowCoreSagaListener()
+    .AddFlowCoreScheduler()
+    .AddFlowCoreDiagnostics();
+
+// 4. Criar Command
 public record CreateUserCommand(string Name, string Email) : ICommand<Guid>;
 
-// 3. Criar Handler
+// 5. Criar Handler
 public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, Guid>
 {
     private readonly MyDbContext _context;
@@ -70,10 +83,10 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, Guid>
     }
 }
 
-// 4. Usar
+// 6. Usar
 var userId = await mediator.SendAsync(new CreateUserCommand("John", "john@email.com"));
 ```
 
 ---
 
-**Versão**: 1.1.3 | **Licença**: MIT
+**Versão**: 2.0.0 | **Licença**: MIT

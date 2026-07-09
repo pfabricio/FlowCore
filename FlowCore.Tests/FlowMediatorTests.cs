@@ -3,6 +3,7 @@ using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 using FlowCore.Tests.Helpers;
 using Microsoft.Extensions.DependencyInjection;
+using FlowCore.Messaging;
 using Moq;
 using Xunit;
 
@@ -10,9 +11,12 @@ namespace FlowCore.Tests;
 
 public class FlowMediatorTests
 {
+
     private ServiceProvider CreateServiceProvider(Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
+        services.AddSingleton<DispatcherCache>();
+        services.AddSingleton<IEventBus, InMemoryEventBus>();
         services.AddScoped<IFlowMediator, FlowMediator>();
         services.AddScoped<ICommandHandler<TestCommand, string>, TestCommandHandler>();
         services.AddScoped<ICommandHandler<TestCommandNoReturn, Unit>, TestCommandNoReturnHandler>();
@@ -75,14 +79,19 @@ public class FlowMediatorTests
     [Fact]
     public async Task PublishAsync_WithEvent_ShouldNotifyAllHandlers()
     {
-        using var provider = CreateServiceProvider();
+        var handlerMock = new Mock<IEventHandler<TestEvent>>();
+        using var provider = CreateServiceProvider(services =>
+        {
+            services.AddSingleton(handlerMock.Object);
+        });
         using var scope = provider.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IFlowMediator>();
 
         await mediator.PublishAsync(new TestEvent("test-data"));
 
-        var handler = scope.ServiceProvider.GetRequiredService<IEventHandler<TestEvent>>() as TestEventHandler;
-        handler!.ReceivedEvents.Should().Contain("test-data");
+        handlerMock.Verify(
+            x => x.HandleAsync(It.Is<TestEvent>(e => e.Data == "test-data"), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

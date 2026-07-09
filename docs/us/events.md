@@ -1,6 +1,6 @@
 # Events — FlowCore
 
-> How to create and use events in FlowCore.
+> How to create and use events and the EventBus in FlowCore.
 
 ---
 
@@ -8,27 +8,22 @@
 
 Events represent notifications about something that happened in the system. In FlowCore, events implement the `IEvent` interface.
 
+There are two ways to publish events:
+- **InMemory** via `IFlowMediator.PublishAsync()` — events are processed in the same process
+- **Distributed** via `IEventBus` — events can be published to external providers (RabbitMQ, Kafka) with Outbox, Retry and Inbox support
+
 ---
 
 ## 🎯 Creating an Event
 
-### Simple Event
-
 ```csharp
 public record UserCreatedEvent(Guid UserId, string UserName) : IEvent;
-```
-
-### Event with Data
-
-```csharp
 public record OrderPlacedEvent(Guid OrderId, Guid UserId, decimal TotalAmount) : IEvent;
 ```
 
 ---
 
 ## 🔧 Creating a Handler
-
-### Simple Handler
 
 ```csharp
 public class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
@@ -48,36 +43,9 @@ public class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
 }
 ```
 
-### Handler with Business Logic
-
-```csharp
-public class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
-{
-    private readonly IEmailService _emailService;
-    private readonly ILogger<UserCreatedEventHandler> _logger;
-
-    public UserCreatedEventHandler(IEmailService emailService, ILogger<UserCreatedEventHandler> logger)
-    {
-        _emailService = emailService;
-        _logger = logger;
-    }
-
-    public async Task HandleAsync(UserCreatedEvent @event, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Processing UserCreatedEvent for user {UserId}", @event.UserId);
-
-        await _emailService.SendWelcomeEmailAsync(@event.UserId, @event.UserName, cancellationToken);
-
-        _logger.LogInformation("Welcome email sent to user {UserId}", @event.UserId);
-    }
-}
-```
-
 ---
 
-## 🚀 Usage
-
-### Publishing Events
+## 🚀 Usage with IFlowMediator (InMemory)
 
 ```csharp
 public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, Guid>
@@ -93,51 +61,52 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, Guid>
 
     public async Task<Guid> Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
-        var user = new User 
-        { 
-            Id = Guid.NewGuid(), 
-            Name = request.Name, 
-            Email = request.Email 
-        };
-        
+        var user = new User { Id = Guid.NewGuid(), Name = request.Name, Email = request.Email };
         _context.Users.Add(user);
         await _context.SaveChangesAsync(cancellationToken);
-
-        // Publish event after persisting
         await _mediator.PublishAsync(new UserCreatedEvent(user.Id, user.Name), cancellationToken);
-
         return user.Id;
     }
 }
 ```
 
-### Multiple Handlers
+---
+
+## 🚀 Usage with IEventBus (Distributed)
 
 ```csharp
-// Handler for sending email
-public class SendWelcomeEmailHandler : IEventHandler<UserCreatedEvent>
+public class OrderService
 {
-    private readonly IEmailService _emailService;
-    public SendWelcomeEmailHandler(IEmailService emailService) => _emailService = emailService;
+    private readonly IEventBus _eventBus;
 
-    public async Task HandleAsync(UserCreatedEvent @event, CancellationToken cancellationToken)
+    public OrderService(IEventBus eventBus)
     {
-        await _emailService.SendWelcomeEmailAsync(@event.UserId, @event.UserName, cancellationToken);
+        _eventBus = eventBus;
     }
-}
 
-// Handler for auditing
-public class AuditUserCreatedHandler : IEventHandler<UserCreatedEvent>
-{
-    private readonly IAuditService _auditService;
-    public AuditUserCreatedHandler(IAuditService auditService) => _auditService = auditService;
-
-    public async Task HandleAsync(UserCreatedEvent @event, CancellationToken cancellationToken)
+    public async Task PlaceOrderAsync(Order order)
     {
-        await _auditService.LogAsync("UserCreated", @event.UserId, cancellationToken);
+        // persist order...
+        await _eventBus.PublishAsync(new OrderPlacedEvent(order.Id, order.UserId, order.TotalAmount));
     }
 }
 ```
+
+`IEventBus` resolves the configured provider (`InMemoryEventBus`, `RabbitMqEventBus` or `KafkaEventBus`) and goes through the `DiagnosticsEventBus` decorator when enabled.
+
+### Providers
+
+| Provider | Package | DI Method |
+|----------|---------|-----------|
+| InMemory | FlowCore (built-in) | `AddFlowCore()` |
+| RabbitMQ | FlowCore.RabbitMQ | `.AddRabbitMQ()` |
+| Kafka | FlowCore.Kafka | `.AddKafka()` |
+
+### Consumption
+
+Consumers are `BackgroundService` instances registered automatically:
+- `RabbitMqConsumerWorker` / `KafkaConsumerWorker`
+- Each message goes through: envelope validation → Inbox check (idempotency) → Handler resolution → Retry with DLQ on failure
 
 ---
 
@@ -147,4 +116,4 @@ public class AuditUserCreatedHandler : IEventHandler<UserCreatedEvent>
 2. **Keep events immutable** - do not modify events after creation
 3. **Include relevant data** - information needed by handlers
 4. **Use multiple handlers** - for different reactive actions
-5. **Handle errors gracefully** - handlers should not fail the main command
+5. **Prefer IEventBus for cross-service** - use PublishAsync for intra-process events

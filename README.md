@@ -1,159 +1,189 @@
-
 # FlowCore
 
 ![NuGet Version](https://img.shields.io/nuget/v/FlowCore)
 ![NuGet Downloads](https://img.shields.io/nuget/dt/FlowCore)
 
-**FlowCore** é um Mediator leve, extensível e moderno para .NET 8+, com suporte a padrões como CQRS, Pipeline Behaviors e integração com EF Core. Ideal para aplicações complexas com separação de responsabilidades clara e escalável.
+**FlowCore** é um framework .NET 8+ para arquiteturas CQRS, Event-Driven e Microsserviços. Oferece um Mediator extensível com Pipeline Behaviors, EventBus com suporte a múltiplos providers de mensageria (RabbitMQ, Kafka, InMemory), além de padrões avançados como Outbox, Inbox, Saga Orchestration, Retry, Dead Letter, Scheduled Messages e OpenTelemetry.
+
+---
 
 ## ✨ Recursos
 
-- Suporte a **Commands**, **Queries** e **Events**
-- **Pipeline Behaviors** com suporte a:
-  - ✔️ Validação (via FluentValidation)
-  - ✔️ Logging
-  - ✔️ Autorização (com roles e regras customizadas)
-  - ✔️ Caching para queries
-  - ✔️ Transações com EF Core
-  - ✔️ Dispatcher de eventos após execução
-- Suporte a múltiplos **Handlers**
-- Pronto para ser injetado com **Dependency Injection**
-- Separação entre modelos de leitura e escrita (CQRS)
+### CQRS + Pipeline
+- **Commands**, **Queries** e **Events**
+- Pipeline Behaviors: Logging, Validation (FluentValidation), Caching, Transações (EF Core), Event Dispatcher
+- Auto-discovery de handlers via Scrutor
+
+### EventBus
+- `IEventBus` — abstração única para publicação de eventos
+- `InMemoryEventBus` — provider padrão, sem Reflection, com delegates compilados
+- Delegate Dispatcher com cache thread-safe Singleton
+- `DiagnosticsEventBus` — decorator com tracing e métricas
+
+### Providers de Mensageria
+- **RabbitMQ** — `AddRabbitMQ()` com publish/consumer worker, reconexão automática
+- **Kafka** — `AddKafka()` com publish/consumer groups, commit gerenciado
+
+### Resiliência
+- **Retry** — `IRetryPolicy` com políticas configuráveis (ImmediateRetry, ExponentialBackoff)
+- **Dead Letter Queue** — `IDeadLetterWriter` para mensagens com falha permanente
+
+### Padrões Transacionais
+- **Outbox** — publicação confiável de eventos com `IOutboxStore` + `OutboxWorker`
+- **Inbox** — processamento idempotente com `IInboxStore` (deduplicação por MessageId)
+
+### Observabilidade
+- **OpenTelemetry** — abstrações `IActivityFactory` + `IMetricRecorder` (no-op por padrão)
+- Integração com `System.Diagnostics.Activity` e `System.Diagnostics.Metrics`
+- Tracing distribuído com propagação de CorrelationId
+
+### Orquestração
+- **Saga Orchestration** — `SagaCoordinator` com steps, compensação em ordem reversa, persistência de estado
+- **Scheduled Messages** — agendamento absoluto/relativo com `IMessageScheduler` + `SchedulerWorker`
 
 ---
 
 ## 📦 Instalação
 
+### Núcleo
 ```bash
-dotnet add package FlowCore --version 1.1.3
+dotnet add package FlowCore --version 2.0.0
+```
+
+### Providers
+```bash
+dotnet add package FlowCore.RabbitMQ --version 2.0.0
+dotnet add package FlowCore.Kafka --version 2.0.0
 ```
 
 ---
 
 ## ⚙️ Configuração
 
-### 1. Adicione no seu `Program.cs`:
-
+### Configuração básica
 ```csharp
 builder.Services.AddFlowCore();
 ```
 
-### 2. Configure o `DbContext`, `FluentValidation` e `ILogger` normalmente:
-
+### Com RabbitMQ
 ```csharp
-builder.Services.AddDbContext<MyDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services
+    .AddFlowCore()
+    .AddRabbitMQ(options =>
+    {
+        options.Host = "localhost";
+        options.Username = "guest";
+        options.Password = "guest";
+    });
+```
 
-builder.Services.AddValidatorsFromAssemblyContaining<CreateUserValidator>();
+### Com Kafka
+```csharp
+builder.Services
+    .AddFlowCore()
+    .AddKafka(options =>
+    {
+        options.BootstrapServers = "localhost:9092";
+        options.ConsumerGroup = "my-service";
+    });
+```
 
-builder.Services.AddLogging();
+### Recursos opcionais
+```csharp
+builder.Services
+    .AddFlowCore()
+    .AddFlowCoreTransactions()      // EF Core transaction scope
+    .AddFlowCoreOutbox()             // Outbox Worker
+    .AddFlowCoreDiagnostics()        // System.Diagnostics Activity + Metrics
+    .AddFlowCoreSagaListener()       // Saga event listener
+    .AddFlowCoreScheduler();         // Scheduled Messages Worker
 ```
 
 ---
 
 ## 💡 Exemplo de Uso
 
-### 1. Criando um `Command`
-
+### Commands e Queries
 ```csharp
 public record CreateUserCommand(string Name, string Email) : ICommand<Guid>;
-```
 
-### 2. Criando o Handler
-
-```csharp
-public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, Guid>
+public class CreateUserHandler : ICommandHandler<CreateUserCommand, Guid>
 {
-    private readonly MyDbContext _context;
-
-    public CreateUserCommandHandler(MyDbContext context)
+    public async Task<Guid> HandleAsync(CreateUserCommand command, CancellationToken ct)
     {
-        _context = context;
-    }
-
-    public async Task<Guid> Handle(CreateUserCommand request, CancellationToken cancellationToken)
-    {
-        var user = new User { Id = Guid.NewGuid(), Name = request.Name, Email = request.Email };
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        var user = new User { Id = Guid.NewGuid(), Name = command.Name, Email = command.Email };
+        // persist...
         return user.Id;
     }
 }
-```
 
-### 3. Chamando o Mediator
-
-```csharp
 var userId = await _mediator.SendAsync(new CreateUserCommand("John", "john@email.com"));
 ```
 
----
-
-## 🔐 Autorização com Roles e Regras
-
-### Criando uma regra customizada
-
-```csharp
-public class MustBeAdminRule : IAuthorizationRule<CreateUserCommand>
-{
-    private readonly IUserContext _userContext;
-
-    public MustBeAdminRule(IUserContext userContext)
-    {
-        _userContext = userContext;
-    }
-
-    public Task<bool> IsAuthorizedAsync(CreateUserCommand request, CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_userContext.Roles.Contains("Admin"));
-    }
-}
-```
-
----
-
-## 🔄 Cache de Queries
-
-Basta implementar a interface `ICacheableQuery` na query que deseja cachear:
-
-```csharp
-public record GetUserByIdQuery(Guid Id) : IQuery<UserDto>, ICacheableQuery
-{
-    public string CacheKey => $"user:{Id}";
-    public TimeSpan? Expiration => TimeSpan.FromMinutes(10);
-}
-```
-
----
-
-## 📢 Eventos
-
+### Eventos
 ```csharp
 public record UserCreatedEvent(Guid UserId) : IEvent;
 
-public class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
+public class UserCreatedHandler : IEventHandler<UserCreatedEvent>
 {
-    public Task HandleAsync(UserCreatedEvent @event, CancellationToken cancellationToken)
+    public Task HandleAsync(UserCreatedEvent @event, CancellationToken ct)
     {
-        Console.WriteLine($"Novo usuário criado: {@event.UserId}");
+        Console.WriteLine($"User created: {@event.UserId}");
         return Task.CompletedTask;
     }
 }
+
+await _eventBus.PublishAsync(new UserCreatedEvent(userId));
 ```
 
-Os eventos são disparados após o `CommandHandler`, se definidos no `EventDispatcherBehavior`.
+### Mensagens Agendadas
+```csharp
+await _scheduler.ScheduleAfterAsync(
+    new OrderExpiredEvent(orderId),
+    TimeSpan.FromHours(2));
+```
+
+### Saga
+```csharp
+public class OrderSaga : Saga
+{
+    public override Task DefineStepsAsync()
+    {
+        AddStep<OrderPlacedEvent>("ReserveInventory", async (evt, ct) =>
+        {
+            // executar
+        }, compensate: async (evt, ct) =>
+        {
+            // compensar se falhar
+        });
+
+        AddStep<PaymentProcessedEvent>("ProcessPayment", async (evt, ct) =>
+        {
+            // executar
+        });
+
+        return Task.CompletedTask;
+    }
+}
+
+// Registrar
+builder.Services.AddSaga<OrderSaga>();
+builder.Services.AddFlowCoreSagaListener();
+```
 
 ---
 
 ## 🧪 Testes
 
-Todos os handlers podem ser testados isoladamente. Basta mockar dependências e chamar diretamente o método `Handle`.
+21 testes unitários cobrindo Mediator, Behaviors, DI, EventBus, Serialização, Retry, DLQ, Outbox, Inbox, Tracing, Saga e Scheduling.
+
+```bash
+dotnet test
+```
 
 ---
 
 ## 📚 Documentação
-
-A documentação completa está disponível em `docs/`:
 
 ### Português (Brasil)
 - [Visão Geral](docs/pt-br/index.md)
@@ -197,4 +227,4 @@ Contribuições são bem-vindas! Sinta-se livre para abrir issues ou pull reques
 
 ## 📄 Licença
 
-Este projeto é licenciado sob a **MIT License**.
+MIT License
