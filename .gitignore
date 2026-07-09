@@ -3,6 +3,8 @@
 *.user
 *.userosscache
 *.sln.docstates
+
+[Ss]pecs
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
