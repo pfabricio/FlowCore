@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>FlowCore.Testing</PackageId>
+    <Version>2.2.0</Version>
+    <Authors>Paulo Fabricio</Authors>
+    <Company>DevSpace</Company>
+    <Description>Testing infrastructure for FlowCore. Provides TestBuilder, FakeEventBus, FakeClock, and helpers for unit, integration, and functional testing.</Description>
+    <PackageTags>flowcore testing test fake mock unit-test integration-test</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/pfabricio/FlowCore</RepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlowCore\FlowCore.csproj" />
+  </ItemGroup>
+
+</Project>

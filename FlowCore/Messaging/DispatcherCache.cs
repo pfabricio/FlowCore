@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.CodeAnalysis;
 using FlowCore.Core.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FlowCore.Messaging;
 
@@ -31,8 +32,39 @@ internal sealed class DispatcherCache
     {
         return _cache.GetOrAdd(eventType, static type =>
         {
-            var invokerType = typeof(EventHandlerInvoker<>).MakeGenericType(type);
-            return (IEventHandlerInvoker)Activator.CreateInstance(invokerType)!;
+            if (TryResolveFromDi(type, out var invoker))
+                return invoker;
+
+            return CreateInvokerWithReflection(type);
         });
+    }
+
+    private static bool TryResolveFromDi(Type eventType, [NotNullWhen(true)] out IEventHandlerInvoker? invoker)
+    {
+        invoker = null;
+
+        try
+        {
+            var genericInvokerType = typeof(EventHandlerInvoker<>).MakeGenericType(eventType);
+
+            if (Activator.CreateInstance(genericInvokerType) is IEventHandlerInvoker created)
+            {
+                invoker = created;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    [RequiresDynamicCode("The fallback invoker uses MakeGenericType and Activator.CreateInstance. Use Source Generators for AOT compatibility.")]
+    [RequiresUnreferencedCode("The fallback invoker uses MakeGenericType and Activator.CreateInstance. Use Source Generators for AOT compatibility.")]
+    private static IEventHandlerInvoker CreateInvokerWithReflection(Type eventType)
+    {
+        var invokerType = typeof(EventHandlerInvoker<>).MakeGenericType(eventType);
+        return (IEventHandlerInvoker)Activator.CreateInstance(invokerType)!;
     }
 }

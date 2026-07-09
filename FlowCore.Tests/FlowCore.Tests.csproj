@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlowCore\FlowCore.csproj" />
+    <ProjectReference Include="..\FlowCore.Testing\FlowCore.Testing.csproj" />
   </ItemGroup>
 
 </Project>

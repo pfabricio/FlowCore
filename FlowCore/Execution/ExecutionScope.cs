@@ -18,6 +18,7 @@ internal sealed class ExecutionScope : IExecutionScope
     public ICorrelationContext Correlation { get; }
     public IExecutionItems Items { get; }
     public IDiagnosticsContext Diagnostics { get; }
+    public IMetricsContext Metrics { get; }
     public CancellationToken CancellationToken { get; }
 
     public ExecutionScope(CancellationToken cancellationToken = default)
@@ -26,6 +27,7 @@ internal sealed class ExecutionScope : IExecutionScope
         Correlation = new CorrelationContext(Id);
         Items = new ExecutionItems();
         Diagnostics = new DiagnosticsContext();
+        Metrics = new MetricsContext();
         CancellationToken = cancellationToken;
         Current = this;
     }

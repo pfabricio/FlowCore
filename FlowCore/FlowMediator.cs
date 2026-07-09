@@ -1,9 +1,10 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 using FlowCore.Execution;
-using System.Reflection;
-using System.Runtime.ExceptionServices;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FlowCore;
 
@@ -18,7 +19,6 @@ public class FlowMediator : IFlowMediator
         _eventBus = eventBus;
     }
 
-    /// <inheritdoc />
     public Task<TResult> SendAsync<TResult>(
         ICommand<TResult> command,
         CancellationToken cancellationToken = default)
@@ -26,7 +26,6 @@ public class FlowMediator : IFlowMediator
         return ExecutePipeline<ICommand<TResult>, TResult>(command, cancellationToken);
     }
 
-    /// <inheritdoc />
     public Task SendAsync(
         ICommand<Unit> command,
         CancellationToken cancellationToken = default)
@@ -34,7 +33,6 @@ public class FlowMediator : IFlowMediator
         return ExecutePipeline<ICommand<Unit>, Unit>(command, cancellationToken);
     }
 
-    /// <inheritdoc />
     public Task<TResult> QueryAsync<TResult>(
         IQuery<TResult> query,
         CancellationToken cancellationToken = default)
@@ -91,13 +89,58 @@ public class FlowMediator : IFlowMediator
         object request,
         CancellationToken cancellationToken)
     {
+        if (TryDispatchWithGenerated<TResult>(handler, request, cancellationToken, out var result))
+            return result;
+
+        return await InvokeHandleWithReflectionAsync<TResult>(handler, request, cancellationToken);
+    }
+
+    private static bool TryDispatchWithGenerated<TResult>(
+        object handler,
+        object request,
+        CancellationToken cancellationToken,
+        out TResult result)
+    {
+        result = default!;
+
+        try
+        {
+            var handleMethod = handler.GetType().GetMethod("HandleAsync",
+                [request.GetType(), typeof(CancellationToken)]);
+
+            if (handleMethod is null)
+                return false;
+
+            if (handleMethod.ReturnType.IsGenericType &&
+                handleMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
+            {
+                var task = (Task<TResult>)handleMethod.Invoke(handler, [request, cancellationToken])!;
+                result = task.GetAwaiter().GetResult();
+                return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [RequiresDynamicCode("The fallback handler invoker uses reflection. Use Source Generators for AOT compatibility.")]
+    [RequiresUnreferencedCode("The fallback handler invoker uses reflection. Use Source Generators for AOT compatibility.")]
+    private static async Task<TResult> InvokeHandleWithReflectionAsync<TResult>(
+        object handler,
+        object request,
+        CancellationToken cancellationToken)
+    {
         var method = handler.GetType().GetMethod("HandleAsync")
             ?? throw new InvalidOperationException(
                 $"Handler {handler.GetType().Name} does not have a HandleAsync method.");
 
         try
         {
-            var task = (Task<TResult>)(method.Invoke(handler, new[] { request, cancellationToken })
+            var task = (Task<TResult>)(method.Invoke(handler, [request, cancellationToken])
                 ?? throw new InvalidOperationException(
                     $"Handler {handler.GetType().Name}.HandleAsync returned null."));
             return await task;
@@ -109,7 +152,6 @@ public class FlowMediator : IFlowMediator
         }
     }
 
-    /// <inheritdoc />
     public Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
         return _eventBus.PublishAsync(@event, cancellationToken);

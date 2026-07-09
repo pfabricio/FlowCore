@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using FlowCore.Core;
 using FlowCore.Core.Interfaces;
@@ -11,6 +12,48 @@ internal sealed class HandlerDiscovery
     private static readonly Type EventHandlerType = typeof(IEventHandler<>);
 
     public HandlerRegistry Discover(params Assembly[] assemblies)
+    {
+        var generated = TryLoadGeneratedRegistry();
+        if (generated is not null)
+            return generated;
+
+        return DiscoverWithReflection(assemblies);
+    }
+
+    private static HandlerRegistry? TryLoadGeneratedRegistry()
+    {
+        try
+        {
+            var generatedType = Type.GetType(
+                "FlowCore.Generated.GeneratedHandlerRegistry, FlowCore",
+                throwOnError: false);
+
+            if (generatedType is null)
+                return null;
+
+            var handlersProp = generatedType.GetProperty("Handlers",
+                BindingFlags.Static | BindingFlags.Public);
+
+            if (handlersProp?.GetValue(null) is IReadOnlyList<HandlerDescriptor> descriptors)
+            {
+                var registry = new HandlerRegistry();
+                foreach (var descriptor in descriptors)
+                {
+                    registry.Register(descriptor);
+                }
+                return registry;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    [RequiresUnreferencedCode("Handler discovery uses reflection. Use Source Generators for AOT compatibility.")]
+    [RequiresDynamicCode("Handler discovery uses reflection. Use Source Generators for AOT compatibility.")]
+    private static HandlerRegistry DiscoverWithReflection(params Assembly[] assemblies)
     {
         var registry = new HandlerRegistry();
         var types = assemblies

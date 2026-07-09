@@ -1,6 +1,6 @@
 # FlowCore — Documentation
 
-> .NET 8+ framework for CQRS, Event-Driven and Microservices. Extensible Mediator with Pipeline Behaviors, multi-provider EventBus, Outbox, Inbox, Saga, Scheduling, Retry, DLQ, OpenTelemetry, Execution Scope, Handler Discovery, Module System and Source Generator.
+> .NET 8+ framework for CQRS, Event-Driven and Microservices. Extensible Mediator with Pipeline Behaviors, multi-provider EventBus, Outbox, Inbox, Saga, Scheduling, Retry, DLQ, OpenTelemetry, Execution Scope, Handler Discovery, Module Manifest, Health Checks, Metrics, Resilience, Hosted Workers, Plugin Model and Source Generator.
 
 ---
 
@@ -41,8 +41,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [Testing](testing.md) | Unit testing, mocking, patterns |
-| [Advanced](advanced.md) | EventBus, Retry, Outbox, Inbox, Saga, Scheduling, Metrics |
+| [Advanced](advanced.md) | Module Manifest, Health Checks, Hosting, Workers, Resilience, Metrics, Plugin Model, EventBus, Saga, Scheduling, Testing |
+| [Testing](testing.md) | Unit testing, mocking, FlowCore.Testing |
 
 ---
 
@@ -89,4 +89,4 @@ var userId = await mediator.SendAsync(new CreateUserCommand("John", "john@email.
 
 ---
 
-**Version**: 2.1.0 | **License**: MIT
+**Version**: 2.2.0 | **License**: MIT

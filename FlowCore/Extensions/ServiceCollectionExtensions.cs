@@ -7,6 +7,7 @@ using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 using FlowCore.Diagnostics;
 using FlowCore.Discovery;
+using FlowCore.Hosting;
 using FlowCore.Messaging;
 using FlowCore.Pipeline.Behaviors;
 using FlowCore.Saga;
@@ -57,6 +58,27 @@ public static class ServiceCollectionExtensions
         {
             var discovery = new HandlerDiscovery();
             return discovery.Discover(assemblies);
+        });
+
+        services.TryAddSingleton<IModuleRegistry>(sp =>
+        {
+            var manifests = sp.GetServices<IModuleManifest>();
+            return new ModuleRegistry(manifests);
+        });
+
+        services.TryAddSingleton<IBootstrapCoordinator, BootstrapCoordinator>();
+        services.AddHostedService<BootstrapHostedService>();
+
+        services.TryAddSingleton<IHealthCheckRegistry>(sp =>
+        {
+            var checks = sp.GetServices<IHealthCheck>();
+            return new HealthCheckRegistry(checks);
+        });
+
+        services.TryAddSingleton<IHostedWorkerManager>(sp =>
+        {
+            var workers = sp.GetServices<IHostedWorker>();
+            return new HostedWorkerManager(workers);
         });
 
         services.AddScoped<IFlowMediator, FlowMediator>();

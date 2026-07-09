@@ -11,20 +11,23 @@
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>2.1.0</Version>
+		<Version>2.2.0</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator com Pipeline Behaviors, EventBus multi-provider (InMemory/RabbitMQ/Kafka), Outbox, Inbox, Saga, Scheduled Messages, Retry, DLQ, OpenTelemetry, Module System, Handler Discovery, Execution Scope, Diagnostics Context e Source Generator.</Description>
 		<PackageTags>mediator cqrs pipeline eventbus messaging outbox inbox saga scheduler retry dlq opentelemetry rabbitmq kafka validation caching transactions dotnet source-generator</PackageTags>
 		<PackageReleaseNotes>
-			v2.1.0:
-			- Configuration: FlowCoreOptions com validação
-			- Handler Discovery: IHandlerRegistry + HandlerDescriptor + validação de duplicados
-			- Execution Scope: contexto compartilhado por execução (Correlation, Items, Diagnostics)
-			- Provider Bootstrap: IMessageProvider + IProviderRegistry (Start/Stop)
-			- Diagnostics Context: IDiagnosticsContext + DiagnosticEntry centralizado
-			- Module System: IFlowCoreBuilder + IFlowCoreModule + AddModule
-			- Source Generator: HandlerRegistry, DI Registration e Dispatcher gerados em compile-time
+			v2.2.0:
+			- Module Manifest: IModuleManifest + IModuleRegistry para metadados de módulos
+			- Hosting &amp; Application Lifecycle: Bootstrap e Shutdown ordenados
+			- Metrics Context: IMetricsContext + MetricEntry por Execution Scope
+			- Health Checks: IHealthCheck + IHealthCheckRegistry + ASP.NET Core integration
+			- Resilience: IResiliencePolicy + Circuit Breaker, Timeout, Bulkhead, Fallback, Rate Limiter
+			- Hosted Workers: IHostedWorker + IHostedWorkerManager unificados
+			- Plugin Model: plugins como cidadãos de primeira classe via Builder
+			- Testing Infrastructure: FlowCore.Testing com Fake Providers e Test Builder
+			- Source Generators: caminho preferencial com fallback reflection (híbrido)
+			- AOT Compatibility: zero reflection em runtime nos caminhos gerados
 		</PackageReleaseNotes>
 
 		<!-- Opcional, mas recomendado -->

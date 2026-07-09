@@ -1,12 +1,12 @@
 # Testing — FlowCore
 
-> How to test handlers and behaviors in FlowCore.
+> How to test handlers, behaviors and applications in FlowCore.
 
 ---
 
 ## 📖 Overview
 
-FlowCore is designed to be easily testable. Handlers and behaviors can be tested in isolation using mocks and simulated dependencies.
+FlowCore is designed to be easily testable. Handlers and behaviors can be tested in isolation using mocks and simulated dependencies. For integration tests, the `FlowCore.Testing` package provides reusable infrastructure.
 
 ---
 
@@ -29,13 +29,9 @@ public class CreateUserCommandHandlerTests
     [Fact]
     public async Task Handle_ShouldCreateUser_ReturnsUserId()
     {
-        // Arrange
         var command = new CreateUserCommand("John", "john@email.com");
-
-        // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
-        // Assert
         Assert.NotEqual(Guid.Empty, result);
         _contextMock.Verify(x => x.Users.Add(It.IsAny<User>()), Times.Once);
         _contextMock.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -60,33 +56,16 @@ public class GetUserByIdQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnUser_WhenExists()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var user = new User { Id = userId, Name = "John", Email = "john@email.com" };
 
         _contextMock.Setup(x => x.Users.FindAsync(userId))
             .ReturnsAsync(user);
 
-        // Act
         var result = await _handler.Handle(new GetUserByIdQuery(userId), CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(userId, result.Id);
-        Assert.Equal("John", result.Name);
-    }
-
-    [Fact]
-    public async Task Handle_ShouldThrowNotFoundException_WhenUserNotExists()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        _contextMock.Setup(x => x.Users.FindAsync(userId))
-            .ReturnsAsync((User?)null);
-
-        // Act & Assert
-        await Assert.ThrowsAsync<NotFoundException>(
-            () => _handler.Handle(new GetUserByIdQuery(userId), CancellationToken.None));
     }
 }
 ```
@@ -103,107 +82,79 @@ public class ValidationBehaviorTests
     [Fact]
     public async Task Handle_ShouldPassValidation_WhenValidCommand()
     {
-        // Arrange
-        var validators = new List<IValidator<CreateUserCommand>>
-        {
-            new CreateUserCommandValidator()
-        };
+        var validators = new List<IValidator<CreateUserCommand>> { new CreateUserCommandValidator() };
         var behavior = new ValidationBehavior<CreateUserCommand, Guid>(validators);
         var command = new CreateUserCommand("John", "john@email.com");
         RequestHandlerDelegate<Guid> next = () => Task.FromResult(Guid.NewGuid());
 
-        // Act
         var result = await behavior.Handle(command, next, CancellationToken.None);
-
-        // Assert
         Assert.NotEqual(Guid.Empty, result);
     }
 
     [Fact]
     public async Task Handle_ShouldThrowValidationException_WhenInvalidCommand()
     {
-        // Arrange
-        var validators = new List<IValidator<CreateUserCommand>>
-        {
-            new CreateUserCommandValidator()
-        };
+        var validators = new List<IValidator<CreateUserCommand>> { new CreateUserCommandValidator() };
         var behavior = new ValidationBehavior<CreateUserCommand, Guid>(validators);
         var command = new CreateUserCommand("", "invalid-email");
         RequestHandlerDelegate<Guid> next = () => Task.FromResult(Guid.NewGuid());
 
-        // Act & Assert
         await Assert.ThrowsAsync<FluentValidation.ValidationException>(
             () => behavior.Handle(command, next, CancellationToken.None));
     }
 }
 ```
 
-### Logging Behavior Test
+---
+
+## 🚀 Testing with FlowCore.Testing
+
+The `FlowCore.Testing` package provides `FakeEventBus`, `FakeClock` and `FlowCoreTestBuilder` for integration tests without external infrastructure.
+
+### Installation
+
+```bash
+dotnet add package FlowCore.Testing --version 2.2.0
+```
+
+### Integration Test with FakeEventBus
 
 ```csharp
-public class LoggingBehaviorTests
+public class OrderServiceTests
 {
     [Fact]
-    public async Task Handle_ShouldLogRequests()
+    public async Task PlaceOrder_ShouldPublishEvent()
     {
-        // Arrange
-        var loggerMock = new Mock<ILogger<LoggingBehavior<CreateUserCommand, Guid>>>();
-        var behavior = new LoggingBehavior<CreateUserCommand, Guid>(loggerMock.Object);
-        var command = new CreateUserCommand("John", "john@email.com");
-        RequestHandlerDelegate<Guid> next = () => Task.FromResult(Guid.NewGuid());
+        var services = new ServiceCollection();
+        services.AddScoped<IOrderService, OrderService>();
+        services.AddDbContext<MyDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
 
-        // Act
-        await behavior.Handle(command, next, CancellationToken.None);
+        var builder = services.CreateTestBuilder();
+        var provider = builder.Build();
 
-        // Assert
-        loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Handling")),
-                null,
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        var orderService = provider.GetRequiredService<IOrderService>();
+        var fakeBus = provider.GetFakeEventBus();
+
+        await orderService.PlaceOrderAsync("John", 100);
+
+        var events = fakeBus.PublishedOfType<OrderPlacedEvent>();
+        Assert.Single(events);
+        Assert.Equal(100, events.Single().Total);
     }
 }
 ```
 
----
-
-## 🚀 Testing with Mediator
-
-### Integration Test
+### FakeClock
 
 ```csharp
-public class FlowMediatorTests
+[Fact]
+public void Schedule_WithFakeClock_ShouldAdvanceTime()
 {
-    private readonly ServiceProvider _serviceProvider;
-    private readonly IFlowMediator _mediator;
+    var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    clock.Advance(TimeSpan.FromHours(2));
 
-    public FlowMediatorTests()
-    {
-        var services = new ServiceCollection();
-        services.AddFlowCore();
-        services.AddDbContext<MyDbContext>(options =>
-            options.UseInMemoryDatabase("TestDb"));
-        services.AddValidatorsFromAssemblyContaining<CreateUserCommandValidator>();
-
-        _serviceProvider = services.BuildServiceProvider();
-        _mediator = _serviceProvider.GetRequiredService<IFlowMediator>();
-    }
-
-    [Fact]
-    public async Task SendAsync_ShouldExecuteHandler()
-    {
-        // Arrange
-        var command = new CreateUserCommand("John", "john@email.com");
-
-        // Act
-        var result = await _mediator.SendAsync(command);
-
-        // Assert
-        Assert.NotEqual(Guid.Empty, result);
-    }
+    Assert.Equal(2, clock.UtcNow.Hour);
 }
 ```
 
@@ -211,8 +162,8 @@ public class FlowMediatorTests
 
 ## 📝 Best Practices
 
-1. **Test in isolation** - each handler and behavior should be tested independently
-2. **Use mocks** - to simulate external dependencies
-3. **Test error scenarios** - ensure exceptions are handled correctly
-4. **Use realistic test data** - to ensure tests reflect real usage
-5. **Keep tests clean** - arrange, act, assert should be clear
+1. **Test in isolation** — each handler and behavior should be tested independently
+2. **Use mocks** — to simulate external dependencies
+3. **Test error scenarios** — ensure exceptions are handled correctly
+4. **Use FlowCore.Testing** — for integration tests with FakeEventBus
+5. **Keep tests clean** — arrange, act, assert should be clear

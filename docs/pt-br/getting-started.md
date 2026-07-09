@@ -8,13 +8,18 @@
 
 ### Núcleo
 ```bash
-dotnet add package FlowCore --version 2.1.0
+dotnet add package FlowCore --version 2.2.0
 ```
 
 ### Providers de Mensageria (opcional)
 ```bash
-dotnet add package FlowCore.RabbitMQ --version 2.1.0
-dotnet add package FlowCore.Kafka --version 2.1.0
+dotnet add package FlowCore.RabbitMQ --version 2.2.0
+dotnet add package FlowCore.Kafka --version 2.2.0
+```
+
+### Testing (opcional)
+```bash
+dotnet add package FlowCore.Testing --version 2.2.0
 ```
 
 ---
@@ -78,6 +83,8 @@ builder.Services.AddFlowCore()
     .AddFlowCoreDiagnostics()        // Tracing + Metrics
     .AddFlowCoreSagaListener()       // Saga event listener
     .AddFlowCoreScheduler();         // Scheduled Messages Worker
+    .AddHealthCheck<MyHealthCheck>() // Health Check customizado
+    .AddHostedWorker<MyWorker>();    // Worker customizado
 ```
 
 ---
@@ -174,4 +181,4 @@ public class UserService
 - [Queries](queries.md) - Saiba mais sobre consultas
 - [Events](events.md) - Eventos e EventBus
 - [Pipeline](pipeline.md) - Entenda os behaviors
-- [Advanced](advanced.md) - EventBus, Saga, Scheduling e mais
+- [Advanced](advanced.md) - Module Manifest, Health Checks, Resilience, Workers, Saga, Scheduling e mais
