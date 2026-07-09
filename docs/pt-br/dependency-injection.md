@@ -13,7 +13,7 @@ O FlowCore é construído sobre o sistema de Dependency Injection do .NET. Todos
 ## 🎯 Configuração Básica
 
 ```csharp
-// Registrar FlowCore
+// Registrar FlowCore (retorna IFlowCoreBuilder para encadeamento)
 builder.Services.AddFlowCore();
 
 // Registrar DbContext
@@ -64,7 +64,7 @@ builder.Services.AddFlowCore()
 ### Handlers
 
 ```csharp
-// Handlers são registrados automaticamente por assembly scanning
+// Handlers são registrados automaticamente por assembly scanning no IHandlerRegistry
 builder.Services.AddFlowCore();
 ```
 
@@ -87,6 +87,46 @@ builder.Services.AddValidatorsFromAssemblyContaining<CreateUserCommandValidator>
 ```csharp
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ICacheProvider, MemoryCacheProvider>();
+```
+
+---
+
+## ⚙️ Configuração Global (FlowCoreOptions)
+
+```csharp
+builder.Services.Configure<FlowCoreOptions>(options =>
+{
+    options.MaxRetryAttempts = 5;
+    options.DefaultCacheExpiration = TimeSpan.FromMinutes(15);
+});
+```
+
+---
+
+## 🧩 Module System
+
+Módulos personalizados implementam `IFlowCoreModule` e são registrados via `IFlowCoreBuilder`:
+
+```csharp
+builder.Services.AddFlowCore().AddModule<MyModule>();
+```
+
+Providers RabbitMQ e Kafka são registrados como módulos:
+
+```csharp
+builder.Services.AddFlowCore().AddRabbitMQ(options => { ... });
+builder.Services.AddFlowCore().AddKafka(options => { ... });
+```
+
+---
+
+## 🏗️ ExecutionScope
+
+`ExecutionScope` não requer registro em DI — é acessado via `AsyncLocal`:
+
+```csharp
+var scope = ExecutionScope.Current;
+scope?.Diagnostics.Write("step", "processing");
 ```
 
 ---

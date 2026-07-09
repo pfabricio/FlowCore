@@ -1,6 +1,6 @@
 # Advanced — FlowCore
 
-> Advanced topics: EventBus, Retry, DLQ, Outbox, Inbox, Saga, Scheduled Messages and Observability.
+> Advanced topics: EventBus, Retry, DLQ, Outbox, Inbox, Saga, Scheduled Messages, Observability, Configuration, Handler Discovery, Execution Scope, Provider Bootstrap, Diagnostics Context, Module System and Source Generator.
 
 ---
 
@@ -169,6 +169,153 @@ builder.Services.AddFlowCore().AddFlowCoreDiagnostics();
 - `IActivityFactory` / `SystemDiagnosticsActivityFactory` — creates `Activity` for distributed tracing
 - `IMetricRecorder` / `SystemDiagnosticsMetricRecorder` — records metrics via `System.Diagnostics.Metrics`
 - CorrelationId is propagated in the message envelope
+
+---
+
+---
+
+## ⚙️ Configuration (FlowCoreOptions)
+
+Global framework options configurable via `IConfigureOptions<FlowCoreOptions>` or `appsettings.json`.
+
+```csharp
+builder.Services.Configure<FlowCoreOptions>(options =>
+{
+    options.MaxRetryAttempts = 5;
+    options.DefaultCacheExpiration = TimeSpan.FromMinutes(15);
+});
+```
+
+Validation is automatic via `IValidateOptions<FlowCoreOptions>`:
+- `MaxRetryAttempts` must be >= 0
+- `DefaultCacheExpiration` cannot be zero or negative
+
+---
+
+## 🔍 Handler Discovery
+
+Centralized in `IHandlerRegistry` — replaces scattered assembly scanning with a single registry with duplicate detection.
+
+```csharp
+public interface IHandlerRegistry
+{
+    IReadOnlyList<HandlerDescriptor> GetHandlers(Type handlerType);
+    bool IsHandlerRegistered(Type handlerType, Type implementationType);
+}
+```
+
+Registered automatically as Singleton via `AddFlowCore()`. During bootstrap, `HandlerDiscovery` scans assemblies and registers all handlers implementing `ICommandHandler<>`, `IQueryHandler<>` and `IEventHandler<>`.
+
+### Source Generator (optional)
+
+The `FlowCore.Generators` package (Roslyn Incremental Generator) generates `HandlerRegistry`, `DiRegistration` and `Dispatcher` at compile-time, eliminating Reflection. The runtime attempts to use generated code first, falling back to Reflection-based discovery.
+
+---
+
+## 🏗️ Execution Scope
+
+`IExecutionScope` is a shared context per execution, available without dependency injection via `AsyncLocal<ExecutionScope?>.Current`.
+
+```csharp
+public interface IExecutionScope : IDisposable
+{
+    string CorrelationId { get; }
+    IExecutionItems Items { get; }
+    IDiagnosticsContext Diagnostics { get; }
+}
+```
+
+Created automatically at the start of each `ExecutePipeline` and disposed at the end. Accessible from anywhere in the pipeline: Behaviors, Handlers, EventBus and Providers.
+
+```csharp
+// Anywhere in the pipeline (no DI required)
+var scope = ExecutionScope.Current;
+scope?.Diagnostics.Write("step", "handler-executed");
+```
+
+---
+
+## 🔌 Provider Registry
+
+`IProviderRegistry` maintains the registry of all available `IMessageProvider` instances, enabling runtime discovery.
+
+```csharp
+public interface IProviderRegistry
+{
+    IReadOnlyList<IMessageProvider> GetProviders();
+    void Register(IMessageProvider provider);
+}
+```
+
+`IMessageProvider` defines a common lifecycle contract:
+
+```csharp
+public interface IMessageProvider
+{
+    string Name { get; }
+    Task StartAsync(CancellationToken ct);
+    Task StopAsync(CancellationToken ct);
+}
+```
+
+Implemented by `InMemoryEventBus`, `RabbitMqEventBus` and `KafkaEventBus`.
+
+---
+
+## 📊 Diagnostics Context
+
+`IDiagnosticsContext` collects diagnostic entries during operation execution.
+
+```csharp
+public interface IDiagnosticsContext
+{
+    IReadOnlyList<DiagnosticEntry> Entries { get; }
+    void Write(string step, string message, object? metadata = null);
+}
+```
+
+Available via `ExecutionScope.Current.Diagnostics`. `DiagnosticsEventBus` and `ConsumerWorker.ProcessEnvelopeAsync` already write entries automatically.
+
+### DiagnosticEntry
+
+```csharp
+public record DiagnosticEntry(
+    string Step,
+    string Message,
+    object? Metadata,
+    DateTimeOffset Timestamp);
+```
+
+---
+
+## 🧩 Module System
+
+`IFlowCoreBuilder` is the fluent API for FlowCore configuration, returned by `AddFlowCore()`.
+
+```csharp
+public interface IFlowCoreBuilder
+{
+    IServiceCollection Services { get; }
+    IFlowCoreBuilder AddModule<T>() where T : IFlowCoreModule, new();
+}
+```
+
+`IFlowCoreModule` allows creating independent modules:
+
+```csharp
+public class MyModule : IFlowCoreModule
+{
+    public void Configure(IFlowCoreBuilder builder)
+    {
+        builder.Services.AddSingleton<IMyService, MyService>();
+    }
+}
+
+// Usage
+builder.Services.AddFlowCore().AddModule<MyModule>();
+```
+
+RabbitMQ and Kafka providers extend `IFlowCoreBuilder` instead of `IServiceCollection`.
 
 ---
 

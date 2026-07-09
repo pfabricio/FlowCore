@@ -5,12 +5,15 @@ using FlowCore.RabbitMQ.Configuration;
 
 namespace FlowCore.RabbitMQ;
 
-internal sealed class RabbitMqEventBus : IEventBus, IDisposable
+internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposable
 {
     private readonly RabbitMQOptions _options;
     private readonly RabbitMqConnectionManager _connectionManager;
     private readonly IMessageSerializer _serializer;
     private IModel? _publishChannel;
+    private bool _started;
+
+    public string Name => "RabbitMQ";
 
     public RabbitMqEventBus(
         RabbitMQOptions options,
@@ -20,7 +23,28 @@ internal sealed class RabbitMqEventBus : IEventBus, IDisposable
         _options = options;
         _connectionManager = connectionManager;
         _serializer = serializer;
-        _publishChannel = connectionManager.CreateChannel();
+    }
+
+    public ValueTask StartAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_started)
+        {
+            _publishChannel = _connectionManager.CreateChannel();
+            _started = true;
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask StopAsync(CancellationToken cancellationToken = default)
+    {
+        if (_started)
+        {
+            _publishChannel?.Close();
+            _publishChannel?.Dispose();
+            _publishChannel = null;
+            _started = false;
+        }
+        return ValueTask.CompletedTask;
     }
 
     public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
@@ -69,7 +93,10 @@ internal sealed class RabbitMqEventBus : IEventBus, IDisposable
 
     public void Dispose()
     {
-        _publishChannel?.Close();
-        _publishChannel?.Dispose();
+        if (_started)
+        {
+            _publishChannel?.Close();
+            _publishChannel?.Dispose();
+        }
     }
 }

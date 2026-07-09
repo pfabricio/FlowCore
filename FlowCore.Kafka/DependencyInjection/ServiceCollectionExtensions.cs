@@ -1,3 +1,4 @@
+using FlowCore.Abstractions;
 using FlowCore.Core.Interfaces;
 using FlowCore.Kafka.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,16 +7,17 @@ namespace FlowCore.Kafka.DependencyInjection;
 
 public static class KafkaServiceCollectionExtensions
 {
-    public static IServiceCollection AddKafka(this IServiceCollection services, Action<KafkaOptions> configure)
+    public static IFlowCoreBuilder AddKafka(this IFlowCoreBuilder builder, Action<KafkaOptions> configure)
     {
         var options = new KafkaOptions();
         configure(options);
 
-        services.AddSingleton(options);
-        services.AddSingleton<KafkaEventBus>();
-        services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<KafkaEventBus>());
-        services.AddHostedService<KafkaConsumerWorker>();
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton<KafkaEventBus>();
+        builder.Services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<KafkaEventBus>());
+        builder.Services.AddSingleton<IMessageProvider>(sp => sp.GetRequiredService<KafkaEventBus>());
+        builder.Services.AddHostedService<KafkaConsumerWorker>();
 
-        return services;
+        return builder;
     }
 }

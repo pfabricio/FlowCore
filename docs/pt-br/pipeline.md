@@ -8,6 +8,8 @@
 
 O Pipeline do FlowCore permite interceptar commands e queries antes, durante e após a execução do handler. Isso é útil para cross-cutting concerns como validação, logging, cache e transações.
 
+> **Novidade v2.1.0**: Um `ExecutionScope` com `IDiagnosticsContext` é criado automaticamente para cada execução e está disponível via `ExecutionScope.Current` em Behaviors e Handlers, sem necessidade de injeção de dependência.
+
 ---
 
 ## 🔧 Criando um Behavior

@@ -5,11 +5,14 @@ using FlowCore.Messaging;
 
 namespace FlowCore.Kafka;
 
-internal sealed class KafkaEventBus : IEventBus, IDisposable
+internal sealed class KafkaEventBus : IEventBus, IMessageProvider, IDisposable
 {
     private readonly KafkaOptions _options;
     private readonly IMessageSerializer _serializer;
     private IProducer<string, byte[]>? _producer;
+    private bool _started;
+
+    public string Name => "Kafka";
 
     public KafkaEventBus(
         KafkaOptions options,
@@ -17,6 +20,29 @@ internal sealed class KafkaEventBus : IEventBus, IDisposable
     {
         _options = options;
         _serializer = serializer;
+    }
+
+    public ValueTask StartAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_started)
+        {
+            _producer = new ProducerBuilder<string, byte[]>(
+                new ProducerConfig { BootstrapServers = _options.BootstrapServers }).Build();
+            _started = true;
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask StopAsync(CancellationToken cancellationToken = default)
+    {
+        if (_started)
+        {
+            _producer?.Flush();
+            _producer?.Dispose();
+            _producer = null;
+            _started = false;
+        }
+        return ValueTask.CompletedTask;
     }
 
     public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
@@ -44,10 +70,10 @@ internal sealed class KafkaEventBus : IEventBus, IDisposable
         var body = _serializer.Serialize(envelope);
         var topic = EventTypeToTopic(eventType.Name);
 
-        _producer ??= new ProducerBuilder<string, byte[]>(
-            new ProducerConfig { BootstrapServers = _options.BootstrapServers }).Build();
+        if (!_started)
+            await StartAsync(cancellationToken);
 
-        await _producer.ProduceAsync(topic, new Message<string, byte[]>
+        await _producer!.ProduceAsync(topic, new Message<string, byte[]>
         {
             Key = envelope.MessageId.ToString(),
             Value = body
@@ -64,7 +90,10 @@ internal sealed class KafkaEventBus : IEventBus, IDisposable
 
     public void Dispose()
     {
-        _producer?.Flush();
-        _producer?.Dispose();
+        if (_started)
+        {
+            _producer?.Flush();
+            _producer?.Dispose();
+        }
     }
 }

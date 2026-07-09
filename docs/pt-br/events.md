@@ -92,7 +92,7 @@ public class OrderService
 }
 ```
 
-`IEventBus` resolve o provider configurado (`InMemoryEventBus`, `RabbitMqEventBus` ou `KafkaEventBus`) e passa pelo `DiagnosticsEventBus` decorator quando habilitado.
+`IEventBus` resolve o provider configurado (`InMemoryEventBus`, `RabbitMqEventBus` ou `KafkaEventBus`) e passa pelo `DiagnosticsEventBus` decorator quando habilitado. Todos os providers implementam `IMessageProvider` com ciclo de vida `StartAsync`/`StopAsync` gerenciado pelo `IProviderRegistry`.
 
 ### Providers
 
@@ -107,6 +107,7 @@ public class OrderService
 Os consumers são `BackgroundService` registrados automaticamente:
 - `RabbitMqConsumerWorker` / `KafkaConsumerWorker`
 - Cada mensagem passa por: validação de envelope → verificação Inbox (idempotência) → Resolução do handler → Retry com DLQ em caso de falha
+- Um `ExecutionScope` é criado para cada mensagem, com `DiagnosticsContext` populado automaticamente
 
 ---
 

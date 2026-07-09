@@ -8,13 +8,13 @@
 
 ### Core
 ```bash
-dotnet add package FlowCore --version 2.0.0
+dotnet add package FlowCore --version 2.1.0
 ```
 
 ### Messaging Providers (optional)
 ```bash
-dotnet add package FlowCore.RabbitMQ --version 2.0.0
-dotnet add package FlowCore.Kafka --version 2.0.0
+dotnet add package FlowCore.RabbitMQ --version 2.1.0
+dotnet add package FlowCore.Kafka --version 2.1.0
 ```
 
 ---
@@ -59,7 +59,17 @@ builder.Services.AddFlowCore().AddKafka(options =>
 });
 ```
 
-### 5. Optional modules:
+### 5. Global options (optional):
+
+```csharp
+builder.Services.Configure<FlowCoreOptions>(options =>
+{
+    options.MaxRetryAttempts = 5;
+    options.DefaultCacheExpiration = TimeSpan.FromMinutes(15);
+});
+```
+
+### 6. Optional modules:
 
 ```csharp
 builder.Services.AddFlowCore()

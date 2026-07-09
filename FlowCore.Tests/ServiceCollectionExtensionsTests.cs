@@ -83,7 +83,7 @@ public class ServiceCollectionExtensionsTests
     public void AddFlowCoreTransactions_ShouldRegisterTransactionBehavior()
     {
         var services = new ServiceCollection();
-        services.AddFlowCoreTransactions();
+        services.AddFlowCore().AddFlowCoreTransactions();
         var provider = services.BuildServiceProvider();
 
         var resolver = provider.GetService<IDbContextResolver>();

@@ -1,6 +1,6 @@
 # FlowCore — Documentação
 
-> Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator extensível com Pipeline Behaviors, EventBus multi-provider, Outbox, Inbox, Saga, Scheduling, Retry, DLQ e OpenTelemetry.
+> Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator extensível com Pipeline Behaviors, EventBus multi-provider, Outbox, Inbox, Saga, Scheduling, Retry, DLQ, OpenTelemetry, Execution Scope, Handler Discovery, Module System e Source Generator.
 
 ---
 
@@ -89,4 +89,4 @@ var userId = await mediator.SendAsync(new CreateUserCommand("John", "john@email.
 
 ---
 
-**Versão**: 2.0.0 | **Licença**: MIT
+**Versão**: 2.1.0 | **Licença**: MIT

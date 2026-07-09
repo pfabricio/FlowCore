@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using FlowCore.Core;
 using FlowCore.Core.Interfaces;
+using FlowCore.Execution;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
@@ -41,11 +42,13 @@ public class FlowMediator : IFlowMediator
         return ExecutePipeline<IQuery<TResult>, TResult>(query, cancellationToken);
     }
 
-    private Task<TResult> ExecutePipeline<TRequest, TResult>(
+    private async Task<TResult> ExecutePipeline<TRequest, TResult>(
         TRequest request,
         CancellationToken cancellationToken)
         where TRequest : notnull
     {
+        using var scope = new ExecutionScope(cancellationToken);
+
         var behaviors = _serviceProvider
             .GetServices<IPipelineBehavior<TRequest, TResult>>()
             .Reverse()
@@ -53,21 +56,21 @@ public class FlowMediator : IFlowMediator
 
         RequestHandlerDelegate<TResult> handler = () =>
         {
-            return InvokeHandler<TRequest, TResult>(request, cancellationToken);
+            return InvokeHandler<TRequest, TResult>(request, scope);
         };
 
         foreach (var behavior in behaviors)
         {
             var next = handler;
-            handler = () => behavior.Handle(request, next, cancellationToken);
+            handler = () => behavior.Handle(request, next, scope.CancellationToken);
         }
 
-        return handler();
+        return await handler();
     }
 
     private Task<TResult> InvokeHandler<TRequest, TResult>(
         TRequest request,
-        CancellationToken cancellationToken)
+        ExecutionScope scope)
     {
         var requestType = request!.GetType();
 
@@ -75,12 +78,12 @@ public class FlowMediator : IFlowMediator
         {
             var handlerType = typeof(IQueryHandler<,>).MakeGenericType(requestType, typeof(TResult));
             var handler = _serviceProvider.GetRequiredService(handlerType);
-            return InvokeHandleAsync<TResult>(handler, request, cancellationToken);
+            return InvokeHandleAsync<TResult>(handler, request, scope.CancellationToken);
         }
 
         var commandHandlerType = typeof(ICommandHandler<,>).MakeGenericType(requestType, typeof(TResult));
         var commandHandler = _serviceProvider.GetRequiredService(commandHandlerType);
-        return InvokeHandleAsync<TResult>(commandHandler, request, cancellationToken);
+        return InvokeHandleAsync<TResult>(commandHandler, request, scope.CancellationToken);
     }
 
     private static async Task<TResult> InvokeHandleAsync<TResult>(

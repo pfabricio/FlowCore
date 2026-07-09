@@ -3,7 +3,7 @@
 ![NuGet Version](https://img.shields.io/nuget/v/FlowCore)
 ![NuGet Downloads](https://img.shields.io/nuget/dt/FlowCore)
 
-**FlowCore** é um framework .NET 8+ para arquiteturas CQRS, Event-Driven e Microsserviços. Oferece um Mediator extensível com Pipeline Behaviors, EventBus com suporte a múltiplos providers de mensageria (RabbitMQ, Kafka, InMemory), além de padrões avançados como Outbox, Inbox, Saga Orchestration, Retry, Dead Letter, Scheduled Messages e OpenTelemetry.
+**FlowCore** é um framework .NET 8+ para arquiteturas CQRS, Event-Driven e Microsserviços. Oferece um Mediator extensível com Pipeline Behaviors, EventBus com suporte a múltiplos providers de mensageria (RabbitMQ, Kafka, InMemory), além de padrões avançados como Outbox, Inbox, Saga Orchestration, Retry, Dead Letter, Scheduled Messages, OpenTelemetry, Execution Scope, Handler Discovery, Module System e Source Generator.
 
 ---
 
@@ -12,17 +12,20 @@
 ### CQRS + Pipeline
 - **Commands**, **Queries** e **Events**
 - Pipeline Behaviors: Logging, Validation (FluentValidation), Caching, Transações (EF Core), Event Dispatcher
-- Auto-discovery de handlers via Scrutor
+- Handler Discovery centralizado com `IHandlerRegistry` e validação de duplicados
+- Source Generator opcional para eliminar Reflection em compile-time
 
 ### EventBus
 - `IEventBus` — abstração única para publicação de eventos
 - `InMemoryEventBus` — provider padrão, sem Reflection, com delegates compilados
 - Delegate Dispatcher com cache thread-safe Singleton
-- `DiagnosticsEventBus` — decorator com tracing e métricas
+- `DiagnosticsEventBus` — decorator com tracing, métricas e `IDiagnosticsContext`
+- Providers como `IMessageProvider` com ciclo de vida Start/Stop
 
 ### Providers de Mensageria
 - **RabbitMQ** — `AddRabbitMQ()` com publish/consumer worker, reconexão automática
 - **Kafka** — `AddKafka()` com publish/consumer groups, commit gerenciado
+- Registrados via `IProviderRegistry` para descoberta em runtime
 
 ### Resiliência
 - **Retry** — `IRetryPolicy` com políticas configuráveis (ImmediateRetry, ExponentialBackoff)
@@ -34,12 +37,21 @@
 
 ### Observabilidade
 - **OpenTelemetry** — abstrações `IActivityFactory` + `IMetricRecorder` (no-op por padrão)
-- Integração com `System.Diagnostics.Activity` e `System.Diagnostics.Metrics`
+- **Diagnostics Context** — `IDiagnosticsContext` com `DiagnosticEntry` centralizado no `ExecutionScope`
 - Tracing distribuído com propagação de CorrelationId
+
+### Execution Scope
+- `IExecutionScope` — contexto compartilhado por execução (CorrelationId, Items, Diagnostics)
+- `AsyncLocal` thread-safe, disponível para Pipeline, EventBus, Behaviors e Providers
 
 ### Orquestração
 - **Saga Orchestration** — `SagaCoordinator` com steps, compensação em ordem reversa, persistência de estado
 - **Scheduled Messages** — agendamento absoluto/relativo com `IMessageScheduler` + `SchedulerWorker`
+
+### Module System
+- `IFlowCoreBuilder` — API fluente para registro de módulos
+- `IFlowCoreModule` — interface para criação de módulos independentes
+- `FlowCoreOptions` com validação via `IValidateOptions`
 
 ---
 
@@ -47,13 +59,13 @@
 
 ### Núcleo
 ```bash
-dotnet add package FlowCore --version 2.0.0
+dotnet add package FlowCore --version 2.1.0
 ```
 
 ### Providers
 ```bash
-dotnet add package FlowCore.RabbitMQ --version 2.0.0
-dotnet add package FlowCore.Kafka --version 2.0.0
+dotnet add package FlowCore.RabbitMQ --version 2.1.0
+dotnet add package FlowCore.Kafka --version 2.1.0
 ```
 
 ---

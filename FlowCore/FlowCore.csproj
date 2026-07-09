@@ -11,22 +11,20 @@
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>2.0.0</Version>
+		<Version>2.1.0</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
-		<Description>Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator com Pipeline Behaviors, EventBus multi-provider (InMemory/RabbitMQ/Kafka), Outbox, Inbox, Saga, Scheduled Messages, Retry, DLQ e OpenTelemetry.</Description>
-		<PackageTags>mediator cqrs pipeline eventbus messaging outbox inbox saga scheduler retry dlq opentelemetry rabbitmq kafka validation caching transactions dotnet</PackageTags>
+		<Description>Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator com Pipeline Behaviors, EventBus multi-provider (InMemory/RabbitMQ/Kafka), Outbox, Inbox, Saga, Scheduled Messages, Retry, DLQ, OpenTelemetry, Module System, Handler Discovery, Execution Scope, Diagnostics Context e Source Generator.</Description>
+		<PackageTags>mediator cqrs pipeline eventbus messaging outbox inbox saga scheduler retry dlq opentelemetry rabbitmq kafka validation caching transactions dotnet source-generator</PackageTags>
 		<PackageReleaseNotes>
-			- EventBus com providers InMemory, RabbitMQ e Kafka
-			- Pipeline Behaviors: Logging, Validation, Caching, Transactions, EventDispatcher
-			- Resiliência: IRetryPolicy + Dead Letter Queue
-			- Outbox: publicação confiável com OutboxWorker
-			- Inbox: processamento idempotente com deduplicação
-			- Saga Orchestration com compensação automática
-			- Scheduled Messages (absoluto e relativo)
-			- Observabilidade: IActivityFactory + IMetricRecorder + DiagnosticsEventBus
-			- ConsumerWorker base com EnvelopeValidator e RetryHandler
-			- Zero Reflection no Publish (delegates compilados cacheados)
+			v2.1.0:
+			- Configuration: FlowCoreOptions com validação
+			- Handler Discovery: IHandlerRegistry + HandlerDescriptor + validação de duplicados
+			- Execution Scope: contexto compartilhado por execução (Correlation, Items, Diagnostics)
+			- Provider Bootstrap: IMessageProvider + IProviderRegistry (Start/Stop)
+			- Diagnostics Context: IDiagnosticsContext + DiagnosticEntry centralizado
+			- Module System: IFlowCoreBuilder + IFlowCoreModule + AddModule
+			- Source Generator: HandlerRegistry, DI Registration e Dispatcher gerados em compile-time
 		</PackageReleaseNotes>
 
 		<!-- Opcional, mas recomendado -->
@@ -45,6 +43,7 @@
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="FlowCore.Tests" />
+		<InternalsVisibleTo Include="FlowCore.Generators" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -54,6 +53,10 @@
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
 		<PackageReference Include="Scrutor" Version="6.0.1" />
 		<None Include="README-US.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\FlowCore.Generators\FlowCore.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<!-- EF Core é opcional - necessário apenas para TransactionScopeBehavior -->

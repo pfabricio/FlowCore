@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using FlowCore.Core.Interfaces;
 using FlowCore.Diagnostics;
+using FlowCore.Execution;
 
 namespace FlowCore.Messaging;
 
@@ -24,6 +25,16 @@ internal sealed class DiagnosticsEventBus : IEventBus
         var sw = Stopwatch.StartNew();
 
         var activity = _activityFactory.Start($"publish.{eventName}", ActivityKindType.Producer);
+        var diagnostics = GetCurrentDiagnostics();
+
+        diagnostics?.Write(new DiagnosticEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            Severity = DiagnosticSeverity.Information,
+            Category = DiagnosticsConstants.EventBus,
+            Event = $"publish.{eventName}.started",
+            Message = $"Publishing {eventName}"
+        });
 
         try
         {
@@ -35,6 +46,16 @@ internal sealed class DiagnosticsEventBus : IEventBus
             sw.Stop();
             _metrics.RecordCounter($"publish.{eventName}.success");
             _metrics.RecordDuration($"publish.{eventName}.duration", sw.Elapsed);
+
+            diagnostics?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Information,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"publish.{eventName}.success",
+                Message = $"Published {eventName} in {sw.ElapsedMilliseconds}ms",
+                Metadata = new() { ["duration_ms"] = sw.ElapsedMilliseconds }
+            });
         }
         catch (Exception ex)
         {
@@ -42,6 +63,17 @@ internal sealed class DiagnosticsEventBus : IEventBus
             activity?.SetException(ex);
             _metrics.RecordCounter($"publish.{eventName}.failure");
             _metrics.RecordDuration($"publish.{eventName}.duration", sw.Elapsed);
+
+            diagnostics?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Error,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"publish.{eventName}.failure",
+                Message = $"Failed to publish {eventName}",
+                Exception = ex,
+                Metadata = new() { ["duration_ms"] = sw.ElapsedMilliseconds }
+            });
             throw;
         }
         finally
@@ -56,6 +88,16 @@ internal sealed class DiagnosticsEventBus : IEventBus
         var sw = Stopwatch.StartNew();
 
         var activity = _activityFactory.Start($"publish.{eventName}", ActivityKindType.Producer);
+        var diagnostics = GetCurrentDiagnostics();
+
+        diagnostics?.Write(new DiagnosticEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            Severity = DiagnosticSeverity.Information,
+            Category = DiagnosticsConstants.EventBus,
+            Event = $"publish.{eventName}.started",
+            Message = $"Publishing {eventName}"
+        });
 
         try
         {
@@ -67,6 +109,16 @@ internal sealed class DiagnosticsEventBus : IEventBus
             sw.Stop();
             _metrics.RecordCounter($"publish.{eventName}.success");
             _metrics.RecordDuration($"publish.{eventName}.duration", sw.Elapsed);
+
+            diagnostics?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Information,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"publish.{eventName}.success",
+                Message = $"Published {eventName} in {sw.ElapsedMilliseconds}ms",
+                Metadata = new() { ["duration_ms"] = sw.ElapsedMilliseconds }
+            });
         }
         catch (Exception ex)
         {
@@ -74,11 +126,27 @@ internal sealed class DiagnosticsEventBus : IEventBus
             activity?.SetException(ex);
             _metrics.RecordCounter($"publish.{eventName}.failure");
             _metrics.RecordDuration($"publish.{eventName}.duration", sw.Elapsed);
+
+            diagnostics?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Error,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"publish.{eventName}.failure",
+                Message = $"Failed to publish {eventName}",
+                Exception = ex,
+                Metadata = new() { ["duration_ms"] = sw.ElapsedMilliseconds }
+            });
             throw;
         }
         finally
         {
             activity?.Dispose();
         }
+    }
+
+    private static IDiagnosticsContext? GetCurrentDiagnostics()
+    {
+        return ExecutionScope.Current?.Diagnostics;
     }
 }

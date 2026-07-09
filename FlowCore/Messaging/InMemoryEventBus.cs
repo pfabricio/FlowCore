@@ -3,16 +3,21 @@ using FlowCore.Core.Interfaces;
 
 namespace FlowCore.Messaging;
 
-internal sealed class InMemoryEventBus : IEventBus
+internal sealed class InMemoryEventBus : IEventBus, IMessageProvider
 {
     private readonly DispatcherCache _cache;
     private readonly IServiceProvider _serviceProvider;
+
+    public string Name => "InMemory";
 
     public InMemoryEventBus(DispatcherCache cache, IServiceProvider serviceProvider)
     {
         _cache = cache;
         _serviceProvider = serviceProvider;
     }
+
+    public ValueTask StartAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+    public ValueTask StopAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 
     public async Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
         where TEvent : IEvent

@@ -1,9 +1,12 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using FlowCore.Abstractions;
 using FlowCore;
 using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 using FlowCore.Diagnostics;
+using FlowCore.Discovery;
 using FlowCore.Messaging;
 using FlowCore.Pipeline.Behaviors;
 using FlowCore.Saga;
@@ -12,12 +15,12 @@ using System.Reflection;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddFlowCore(this IServiceCollection services)
+    public static IFlowCoreBuilder AddFlowCore(this IServiceCollection services)
     {
         return services.AddFlowCore(AppDomain.CurrentDomain.GetAssemblies());
     }
 
-    public static IServiceCollection AddFlowCore(this IServiceCollection services, params Assembly[] assemblies)
+    public static IFlowCoreBuilder AddFlowCore(this IServiceCollection services, params Assembly[] assemblies)
     {
         services.AddSingleton<IActivityFactory>(sp => NullActivityFactory.Instance);
         services.AddSingleton<IMetricRecorder>(sp => NullMetricRecorder.Instance);
@@ -44,6 +47,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IScheduledMessageStore, InMemoryScheduledMessageStore>();
         services.AddSingleton<IMessageScheduler, MessageScheduler>();
 
+        services.TryAddSingleton<IProviderRegistry>(sp =>
+        {
+            var providers = sp.GetServices<IMessageProvider>();
+            return new ProviderRegistry(providers);
+        });
+
+        services.TryAddSingleton<IHandlerRegistry>(sp =>
+        {
+            var discovery = new HandlerDiscovery();
+            return discovery.Discover(assemblies);
+        });
+
         services.AddScoped<IFlowMediator, FlowMediator>();
 
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
@@ -67,65 +82,47 @@ public static class ServiceCollectionExtensions
                 .WithScopedLifetime()
         );
 
-        return services;
+        var builder = new FlowCoreBuilder(services);
+
+        return builder;
     }
 
-    /// <summary>
-    /// Adiciona suporte a transações automáticas via EF Core.
-    /// </summary>
-    public static IServiceCollection AddFlowCoreTransactions(this IServiceCollection services)
+    public static IFlowCoreBuilder AddFlowCoreTransactions(this IFlowCoreBuilder builder)
     {
-        services.AddScoped<IDbContextResolver, DbContextResolver>();
-        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionScopeBehavior<,>));
-        return services;
+        builder.Services.AddScoped<IDbContextResolver, DbContextResolver>();
+        builder.Services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionScopeBehavior<,>));
+        return builder;
     }
 
-    /// <summary>
-    /// Ativa o Outbox Worker para publicação confiável de eventos.
-    /// </summary>
-    public static IServiceCollection AddFlowCoreOutbox(this IServiceCollection services)
+    public static IFlowCoreBuilder AddFlowCoreOutbox(this IFlowCoreBuilder builder)
     {
-        services.AddHostedService<OutboxWorker>();
-        return services;
+        builder.Services.AddHostedService<OutboxWorker>();
+        return builder;
     }
 
-    /// <summary>
-    /// Ativa instrumentação com System.Diagnostics (Activity + Metrics).
-    /// </summary>
-    public static IServiceCollection AddFlowCoreDiagnostics(this IServiceCollection services)
+    public static IFlowCoreBuilder AddFlowCoreDiagnostics(this IFlowCoreBuilder builder)
     {
-        services.AddSingleton<IActivityFactory, SystemDiagnosticsActivityFactory>();
-        services.AddSingleton<IMetricRecorder, SystemDiagnosticsMetricRecorder>();
-        return services;
+        builder.Services.AddSingleton<IActivityFactory, SystemDiagnosticsActivityFactory>();
+        builder.Services.AddSingleton<IMetricRecorder, SystemDiagnosticsMetricRecorder>();
+        return builder;
     }
 
-    /// <summary>
-    /// Registra uma Saga e ativa o SagaCoordinator automaticamente.
-    /// </summary>
-    public static IServiceCollection AddSaga<TSaga>(this IServiceCollection services)
+    public static IFlowCoreBuilder AddSaga<TSaga>(this IFlowCoreBuilder builder)
         where TSaga : Saga
     {
-        services.AddScoped<TSaga>();
-        return services;
+        builder.Services.AddScoped<TSaga>();
+        return builder;
     }
 
-    /// <summary>
-    /// Ativa o SagaEventListener para processamento automático de eventos de saga.
-    /// </summary>
-    public static IServiceCollection AddFlowCoreSagaListener(this IServiceCollection services)
+    public static IFlowCoreBuilder AddFlowCoreSagaListener(this IFlowCoreBuilder builder)
     {
-        services.AddScoped<IEventHandler<IEvent>, SagaEventListener>();
-        return services;
+        builder.Services.AddScoped<IEventHandler<IEvent>, SagaEventListener>();
+        return builder;
     }
 
-    /// <summary>
-    /// Ativa o Scheduler Worker para publicação automática de mensagens agendadas.
-    /// </summary>
-    public static IServiceCollection AddFlowCoreScheduler(this IServiceCollection services)
+    public static IFlowCoreBuilder AddFlowCoreScheduler(this IFlowCoreBuilder builder)
     {
-        services.AddHostedService<SchedulerWorker>();
-        return services;
+        builder.Services.AddHostedService<SchedulerWorker>();
+        return builder;
     }
 }
-
-

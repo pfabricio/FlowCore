@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using FlowCore.Core.Interfaces;
 using FlowCore.Diagnostics;
+using FlowCore.Execution;
 
 namespace FlowCore.Messaging;
 
@@ -33,12 +34,37 @@ public abstract class ConsumerWorker : BackgroundService
         var activityFactory = scope.ServiceProvider.GetRequiredService<IActivityFactory>();
 
         if (store is not null && await store.ExistsAsync(envelope.MessageId, cancellationToken))
+        {
+            GetCurrentDiagnostics()?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Debug,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"consume.{envelope.EventType}.duplicated",
+                Message = $"Message {envelope.MessageId} already processed, skipped"
+            });
             return;
+        }
 
         var activity = activityFactory.Start(
             $"consume.{envelope.EventType}",
             ActivityKindType.Consumer,
             envelope.CorrelationId.ToString());
+
+        var diagnostics = GetCurrentDiagnostics();
+        diagnostics?.Write(new DiagnosticEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            Severity = DiagnosticSeverity.Information,
+            Category = DiagnosticsConstants.EventBus,
+            Event = $"consume.{envelope.EventType}.started",
+            Message = $"Consuming {envelope.EventType}",
+            Metadata = new()
+            {
+                ["message_id"] = envelope.MessageId.ToString(),
+                ["correlation_id"] = envelope.CorrelationId.ToString()
+            }
+        });
 
         try
         {
@@ -66,15 +92,40 @@ public abstract class ConsumerWorker : BackgroundService
                     CorrelationId = envelope.CorrelationId
                 }, cancellationToken);
             }
+
+            diagnostics?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Information,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"consume.{envelope.EventType}.success",
+                Message = $"Consumed {envelope.EventType}"
+            });
         }
         catch (Exception ex)
         {
             activity?.SetException(ex);
+
+            diagnostics?.Write(new DiagnosticEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Severity = DiagnosticSeverity.Error,
+                Category = DiagnosticsConstants.EventBus,
+                Event = $"consume.{envelope.EventType}.failure",
+                Message = $"Failed to consume {envelope.EventType}",
+                Exception = ex,
+                Metadata = new() { ["message_id"] = envelope.MessageId.ToString() }
+            });
             throw;
         }
         finally
         {
             activity?.Dispose();
         }
+    }
+
+    private static IDiagnosticsContext? GetCurrentDiagnostics()
+    {
+        return ExecutionScope.Current?.Diagnostics;
     }
 }
