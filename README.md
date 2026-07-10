@@ -5,6 +5,10 @@
 
 **FlowCore** is a .NET 8+ framework for CQRS, Event-Driven and Microservices architectures. It provides an extensible Mediator with Pipeline Behaviors, multi-provider EventBus (RabbitMQ, Kafka, InMemory), Outbox, Inbox, Saga, Scheduling, Retry, DLQ, OpenTelemetry, Execution Scope, Handler Discovery (hybrid: Source Generator + reflection fallback), Module Manifest, Health Checks, Metrics Context, Resilience Policies, Hosted Workers, Plugin Model and Testing Infrastructure.
 
+![FlowCore Overview](images/image_flowcore.png)
+
+![FlowCore Flow](images/image_fluxo.png)
+
 ---
 
 ## ✨ Features
