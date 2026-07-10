@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>true</IsPackable>
     <PackageId>FlowCore.Testing</PackageId>
-    <Version>2.2.2</Version>
+    <Version>2.2.3</Version>
     <Authors>Paulo Fabricio</Authors>
     <Company>DevSpace</Company>
     <Description>Testing infrastructure for FlowCore. Provides TestBuilder, FakeEventBus, FakeClock, and helpers for unit, integration, and functional testing.</Description>

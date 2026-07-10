@@ -8,18 +8,18 @@
 
 ### Núcleo
 ```bash
-dotnet add package FlowCore --version 2.2.2
+dotnet add package FlowCore --version 2.2.3
 ```
 
 ### Providers de Mensageria (opcional)
 ```bash
-dotnet add package FlowCore.RabbitMQ --version 2.2.2
-dotnet add package FlowCore.Kafka --version 2.2.2
+dotnet add package FlowCore.RabbitMQ --version 2.2.3
+dotnet add package FlowCore.Kafka --version 2.2.3
 ```
 
 ### Testing (opcional)
 ```bash
-dotnet add package FlowCore.Testing --version 2.2.2
+dotnet add package FlowCore.Testing --version 2.2.3
 ```
 
 ---

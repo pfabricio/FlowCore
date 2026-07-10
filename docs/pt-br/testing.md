@@ -114,7 +114,7 @@ O pacote `FlowCore.Testing` fornece `FakeEventBus`, `FakeClock` e `FlowCoreTestB
 ### Instalação
 
 ```bash
-dotnet add package FlowCore.Testing --version 2.2.2
+dotnet add package FlowCore.Testing --version 2.2.3
 ```
 
 ### Teste de Integração com FakeEventBus

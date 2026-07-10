@@ -11,13 +11,13 @@
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>2.2.2</Version>
+		<Version>2.2.3</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator com Pipeline Behaviors, EventBus multi-provider (InMemory/RabbitMQ/Kafka), Outbox, Inbox, Saga, Scheduled Messages, Retry, DLQ, OpenTelemetry, Module System, Handler Discovery, Execution Scope, Diagnostics Context e Source Generator.</Description>
 		<PackageTags>mediator cqrs pipeline eventbus messaging outbox inbox saga scheduler retry dlq opentelemetry rabbitmq kafka validation caching transactions dotnet source-generator</PackageTags>
 		<PackageReleaseNotes>
-			v2.2.1:
+			v2.2.3:
 			- Fix: DispatcherGenerator agora gera interface genérica correta (ICommandHandler&lt;,&gt;) em vez de I{Name}Handler
 			- Fix: FlowMediator tenta GeneratedDispatcher.DispatchAsync antes do fallback reflection
 			- Fix: DispatcherCache com anotações [DynamicDependency] e [RequiresDynamicCode]
