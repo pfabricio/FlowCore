@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 
@@ -14,6 +15,8 @@ internal sealed class MessageScheduler : IMessageScheduler
         _serializer = serializer;
     }
 
+    [RequiresDynamicCode("Extracting CorrelationId via reflection")]
+    [RequiresUnreferencedCode("Extracting CorrelationId via reflection")]
     public async ValueTask ScheduleAsync<TEvent>(TEvent @event, DateTimeOffset executeAt, CancellationToken cancellationToken = default)
         where TEvent : IEvent
     {

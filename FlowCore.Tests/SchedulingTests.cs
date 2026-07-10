@@ -1,9 +1,12 @@
 using FluentAssertions;
+using System.Collections.Concurrent;
+using FlowCore.Core;
 using FlowCore.Core.Interfaces;
 using FlowCore.Messaging;
 using FlowCore.Scheduling;
 using FlowCore.Tests.Helpers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -134,7 +137,7 @@ public class SchedulingTests
         var provider = services.BuildServiceProvider();
 
         using var cts = new CancellationTokenSource(500);
-        var worker = new SchedulerWorker(provider);
+        var worker = new SchedulerWorker(provider, NullLogger<SchedulerWorker>.Instance);
 
         await worker.StartAsync(cts.Token);
         await worker.StopAsync(default);

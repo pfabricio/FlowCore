@@ -11,7 +11,7 @@ internal sealed class ExecutionScope : IExecutionScope
     public static ExecutionScope? Current
     {
         get => _current.Value;
-        private set => _current.Value = value;
+        set => _current.Value = value;
     }
 
     public Guid Id { get; }

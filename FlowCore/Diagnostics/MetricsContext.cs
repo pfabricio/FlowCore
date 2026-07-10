@@ -6,6 +6,7 @@ namespace FlowCore.Diagnostics;
 internal sealed class MetricsContext : IMetricsContext
 {
     private readonly ConcurrentQueue<MetricEntry> _entries = new();
+    private const int MaxEntries = 1000;
 
     public IReadOnlyCollection<MetricEntry> Entries
         => _entries.ToImmutableArray();
@@ -13,6 +14,7 @@ internal sealed class MetricsContext : IMetricsContext
     public void Record(MetricEntry metric)
     {
         _entries.Enqueue(metric);
+        while (_entries.Count > MaxEntries && _entries.TryDequeue(out _)) { }
     }
 
     public void RecordCounter(string name, long value = 1, IReadOnlyDictionary<string, string>? tags = null)

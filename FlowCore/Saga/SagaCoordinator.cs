@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using FlowCore.Core.Interfaces;
 
@@ -6,18 +7,19 @@ namespace FlowCore.Saga;
 public sealed class SagaCoordinator
 {
     private readonly ISagaStore _store;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public SagaCoordinator(ISagaStore store, IServiceProvider serviceProvider)
+    public SagaCoordinator(ISagaStore store, IServiceScopeFactory scopeFactory)
     {
         _store = store;
-        _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<Guid> StartAsync<TSaga>(SagaState initialState, CancellationToken cancellationToken = default)
         where TSaga : Saga
     {
-        var saga = CreateSaga<TSaga>();
+        using var scope = _scopeFactory.CreateScope();
+        var saga = scope.ServiceProvider.GetRequiredService<TSaga>();
         await saga.DefineStepsAsync();
 
         initialState.SagaType = saga.Name;
@@ -36,7 +38,7 @@ public sealed class SagaCoordinator
     {
         var eventType = @event.GetType();
 
-        using var scope = _serviceProvider.CreateScope();
+        using var scope = _scopeFactory.CreateScope();
         var sagas = scope.ServiceProvider.GetServices<Saga>();
 
         foreach (var saga in sagas)
@@ -94,34 +96,36 @@ public sealed class SagaCoordinator
         state.Status = SagaStatus.Compensating;
         await _store.UpdateAsync(state, cancellationToken);
 
+        bool allCompensated = true;
+        var stepsByName = new Dictionary<string, SagaStep>(saga.Steps.Count);
+        foreach (var s in saga.Steps)
+            stepsByName[s.Name] = s;
+
         for (int i = state.ExecutedSteps.Count - 1; i >= 0; i--)
         {
             var stepName = state.ExecutedSteps[i];
-            var step = saga.Steps.FirstOrDefault(s => s.Name == stepName);
 
-            if (step?.Compensate is null)
+            if (!stepsByName.TryGetValue(stepName, out var step) || step.Compensate is null)
                 continue;
 
             try
             {
-                // We need the original event - stored in state data
                 await step.Compensate(new object(), cancellationToken);
             }
             catch
             {
-                // Log compensation failure, continue with next
+                allCompensated = false;
             }
         }
 
-        state.Status = SagaStatus.Compensated;
+        state.Status = allCompensated ? SagaStatus.Compensated : SagaStatus.CompensationFailed;
+        if (!allCompensated)
+            state.FailureReason = "One or more compensation steps failed after original error: " + state.FailureReason;
         await _store.UpdateAsync(state, cancellationToken);
     }
 
-    private static TSaga CreateSaga<TSaga>() where TSaga : Saga
-    {
-        return Activator.CreateInstance<TSaga>();
-    }
-
+    [RequiresDynamicCode("Extracting SagaId via reflection from event type")]
+    [RequiresUnreferencedCode("Extracting SagaId via reflection from event type")]
     private static Guid? ExtractSagaId(IEvent @event)
     {
         var prop = @event.GetType().GetProperty("SagaId")

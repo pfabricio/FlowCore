@@ -1,4 +1,5 @@
 using FlowCore.Core.Interfaces;
+using FlowCore.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace FlowCore.Hosting;
@@ -24,6 +25,8 @@ internal sealed class BootstrapCoordinator : IBootstrapCoordinator
     public async ValueTask StartAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("FlowCore Bootstrap: starting initialization");
+
+        EventTypeResolver.Warmup(AppDomain.CurrentDomain.GetAssemblies());
 
         ValidateModuleCompatibility();
 

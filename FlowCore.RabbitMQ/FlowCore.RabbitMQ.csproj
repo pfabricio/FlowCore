@@ -8,7 +8,7 @@
 		<AssemblyName>FlowCore.RabbitMQ</AssemblyName>
 		<RootNamespace>FlowCore.RabbitMQ</RootNamespace>
 		<PackageId>FlowCore.RabbitMQ</PackageId>
-		<Version>2.2.1</Version>
+		<Version>2.2.2</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>RabbitMQ messaging provider for FlowCore. Provides RabbitMqEventBus and RabbitMqConsumerWorker with auto-reconnect, envelope validation, retry and DLQ support.</Description>

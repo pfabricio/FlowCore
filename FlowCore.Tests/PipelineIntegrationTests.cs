@@ -16,6 +16,7 @@ public class PipelineIntegrationTests
         var services = new ServiceCollection();
         services.AddSingleton<DispatcherCache>();
         services.AddSingleton<IEventBus, InMemoryEventBus>();
+        services.AddSingleton<IHandlerResolver, DiHandlerResolver>();
         services.AddScoped<IFlowMediator, FlowMediator>();
         services.AddScoped<ICommandHandler<TestCommand, string>, TestCommandHandler>();
         services.AddScoped<ICommandHandler<TestCommandNoReturn, Unit>, TestCommandNoReturnHandler>();

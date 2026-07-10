@@ -27,67 +27,81 @@ internal sealed class RabbitMqConsumerWorker : ConsumerWorker
         _retryHandler = retryHandler;
     }
 
+    private IModel? _channel;
+
     protected override async Task ExecuteConsumeAsync(CancellationToken stoppingToken)
     {
-        var channel = _connectionManager.CreateChannel();
-        var consumer = new AsyncEventingBasicConsumer(channel);
-
-        consumer.Received += async (_, ea) =>
+        _channel = _connectionManager.CreateChannel();
+        try
         {
-            var envelope = DeserializeEnvelope(ea.Body.ToArray());
+            var consumer = new AsyncEventingBasicConsumer(_channel);
 
-            if (envelope is null || !EnvelopeValidator.IsValid(envelope))
+            consumer.Received += async (_, ea) =>
             {
-                channel.BasicNack(ea.DeliveryTag, false, false);
-                return;
-            }
+                var envelope = DeserializeEnvelope(ea.Body.ToArray());
 
-            var attempt = 0;
-            Exception? lastException = null;
-
-            do
-            {
-                try
+                if (envelope is null || !EnvelopeValidator.IsValid(envelope))
                 {
-                    attempt++;
-                    await ProcessEnvelopeAsync(envelope, stoppingToken);
-                    channel.BasicAck(ea.DeliveryTag, false);
+                    _channel.BasicNack(ea.DeliveryTag, false, false);
                     return;
                 }
-                catch (Exception ex)
+
+                var attempt = 0;
+                Exception? lastException = null;
+
+                do
                 {
-                    lastException = ex;
-
-                    var context = new RetryContext
+                    try
                     {
-                        Attempt = attempt,
-                        Exception = ex,
-                        EventType = envelope.EventType,
-                        MessageId = envelope.MessageId,
-                        Timestamp = DateTimeOffset.UtcNow,
-                        Provider = "RabbitMQ"
-                    };
+                        attempt++;
+                        await ProcessEnvelopeAsync(envelope, stoppingToken);
+                        _channel.BasicAck(ea.DeliveryTag, false);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
 
-                    var shouldRetry = await _retryHandler.ShouldRetryAsync(context, stoppingToken);
-                    if (!shouldRetry)
-                        break;
+                        var context = new RetryContext
+                        {
+                            Attempt = attempt,
+                            Exception = ex,
+                            EventType = envelope.EventType,
+                            MessageId = envelope.MessageId,
+                            Timestamp = DateTimeOffset.UtcNow,
+                            Provider = "RabbitMQ"
+                        };
+
+                        var shouldRetry = await _retryHandler.ShouldRetryAsync(context, stoppingToken);
+                        if (!shouldRetry)
+                            break;
+                    }
                 }
+                while (true);
+
+                _channel.BasicNack(ea.DeliveryTag, false, false);
+            };
+
+            var queueName = _channel.QueueDeclare(
+                queue: $"{_options.QueuePrefix}-{Guid.NewGuid()}",
+                durable: false,
+                exclusive: true,
+                autoDelete: true);
+
+            _channel.QueueBind(queueName, _options.ExchangeName, "*");
+            _channel.BasicConsume(queueName, false, consumer);
+
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        finally
+        {
+            if (_channel is { IsOpen: true })
+            {
+                _channel.Close();
+                _channel.Dispose();
+                _channel = null;
             }
-            while (true);
-
-            channel.BasicNack(ea.DeliveryTag, false, false);
-        };
-
-        var queueName = channel.QueueDeclare(
-            queue: $"{_options.QueuePrefix}-{Guid.NewGuid()}",
-            durable: false,
-            exclusive: true,
-            autoDelete: true);
-
-        channel.QueueBind(queueName, _options.ExchangeName, "*");
-        channel.BasicConsume(queueName, false, consumer);
-
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
     }
 
     private MessageEnvelope? DeserializeEnvelope(byte[] body)

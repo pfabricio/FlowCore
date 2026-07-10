@@ -14,9 +14,10 @@ public class SagaTests
         var store = new InMemorySagaStore();
         var services = new ServiceCollection();
         services.AddSingleton<ISagaStore>(store);
-        services.AddTransient<global::FlowCore.Saga.Saga, TestOrderSaga>();
+        services.AddScoped<TestOrderSaga>();
+        services.AddScoped<global::FlowCore.Saga.Saga>(sp => sp.GetRequiredService<TestOrderSaga>());
         var provider = services.BuildServiceProvider();
-        var coordinator = new SagaCoordinator(store, provider);
+        var coordinator = new SagaCoordinator(store, provider.GetRequiredService<IServiceScopeFactory>());
 
         var state = new SagaState { CorrelationId = Guid.NewGuid() };
         var sagaId = await coordinator.StartAsync<TestOrderSaga>(state);
@@ -33,9 +34,10 @@ public class SagaTests
         var store = new InMemorySagaStore();
         var services = new ServiceCollection();
         services.AddSingleton<ISagaStore>(store);
-        services.AddTransient<global::FlowCore.Saga.Saga, TestOrderSaga>();
+        services.AddScoped<TestOrderSaga>();
+        services.AddScoped<global::FlowCore.Saga.Saga>(sp => sp.GetRequiredService<TestOrderSaga>());
         var provider = services.BuildServiceProvider();
-        var coordinator = new SagaCoordinator(store, provider);
+        var coordinator = new SagaCoordinator(store, provider.GetRequiredService<IServiceScopeFactory>());
 
         var expectedId = Guid.NewGuid();
         var state = new SagaState
@@ -54,9 +56,10 @@ public class SagaTests
         var store = new InMemorySagaStore();
         var services = new ServiceCollection();
         services.AddSingleton<ISagaStore>(store);
-        services.AddTransient<global::FlowCore.Saga.Saga, TestOrderSaga>();
+        services.AddScoped<TestOrderSaga>();
+        services.AddScoped<global::FlowCore.Saga.Saga>(sp => sp.GetRequiredService<TestOrderSaga>());
         var provider = services.BuildServiceProvider();
-        var coordinator = new SagaCoordinator(store, provider);
+        var coordinator = new SagaCoordinator(store, provider.GetRequiredService<IServiceScopeFactory>());
 
         var correlationId = Guid.NewGuid();
         var state = new SagaState
@@ -84,9 +87,9 @@ public class SagaTests
 
         var services = new ServiceCollection();
         services.AddSingleton<ISagaStore>(store);
-        services.AddTransient<global::FlowCore.Saga.Saga>(_ => saga);
+        services.AddScoped<global::FlowCore.Saga.Saga>(_ => saga);
         var provider = services.BuildServiceProvider();
-        var coordinator = new SagaCoordinator(store, provider);
+        var coordinator = new SagaCoordinator(store, provider.GetRequiredService<IServiceScopeFactory>());
 
         var correlationId = Guid.NewGuid();
         var state = new SagaState
@@ -117,7 +120,7 @@ public class SagaTests
         services.AddSingleton<ISagaStore>(store);
         services.AddTransient<global::FlowCore.Saga.Saga>(_ => saga);
         var provider = services.BuildServiceProvider();
-        var coordinator = new SagaCoordinator(store, provider);
+        var coordinator = new SagaCoordinator(store, provider.GetRequiredService<IServiceScopeFactory>());
 
         var correlationId = Guid.NewGuid();
         var state = new SagaState

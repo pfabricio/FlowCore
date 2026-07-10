@@ -7,6 +7,21 @@ public static class EventTypeResolver
     private static readonly Dictionary<string, Type> Cache = new();
     private static readonly object Lock = new();
 
+    public static void Warmup(IEnumerable<Assembly> assemblies)
+    {
+        lock (Lock)
+        {
+            foreach (var asm in assemblies)
+            {
+                foreach (var t in asm.GetExportedTypes())
+                {
+                    if (!Cache.ContainsKey(t.Name))
+                        Cache[t.Name] = t;
+                }
+            }
+        }
+    }
+
     public static Type Resolve(string eventTypeName)
     {
         lock (Lock)
@@ -15,7 +30,7 @@ public static class EventTypeResolver
                 return type;
 
             type = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => a.GetTypes())
+                .SelectMany(a => a.GetExportedTypes())
                 .FirstOrDefault(t => t.Name == eventTypeName || t.FullName == eventTypeName);
 
             if (type is null)

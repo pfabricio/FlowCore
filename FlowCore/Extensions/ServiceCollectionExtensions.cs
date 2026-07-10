@@ -81,6 +81,7 @@ public static class ServiceCollectionExtensions
             return new HostedWorkerManager(workers);
         });
 
+        services.AddSingleton<IHandlerResolver, DiHandlerResolver>();
         services.AddScoped<IFlowMediator, FlowMediator>();
 
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));

@@ -7,7 +7,8 @@ public enum SagaStatus
     Completed,
     Failed,
     Compensating,
-    Compensated
+    Compensated,
+    CompensationFailed
 }
 
 public class SagaState

@@ -8,7 +8,7 @@
 		<AssemblyName>FlowCore.Kafka</AssemblyName>
 		<RootNamespace>FlowCore.Kafka</RootNamespace>
 		<PackageId>FlowCore.Kafka</PackageId>
-		<Version>2.2.1</Version>
+		<Version>2.2.2</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>Apache Kafka messaging provider for FlowCore. Provides KafkaEventBus and KafkaConsumerWorker with consumer groups, envelope validation, retry and DLQ support.</Description>

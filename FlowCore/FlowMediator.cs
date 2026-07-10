@@ -11,12 +11,14 @@ namespace FlowCore;
 public class FlowMediator : IFlowMediator
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IHandlerResolver _handlerResolver;
     private readonly IEventBus _eventBus;
     private static readonly GeneratedDispatcherCache _generatedDispatcher = new();
 
-    public FlowMediator(IServiceProvider serviceProvider, IEventBus eventBus)
+    public FlowMediator(IServiceProvider serviceProvider, IHandlerResolver handlerResolver, IEventBus eventBus)
     {
         _serviceProvider = serviceProvider;
+        _handlerResolver = handlerResolver;
         _eventBus = eventBus;
     }
 
@@ -46,25 +48,40 @@ public class FlowMediator : IFlowMediator
         CancellationToken cancellationToken)
         where TRequest : notnull
     {
-        using var scope = new ExecutionScope(cancellationToken);
-
-        var behaviors = _serviceProvider
-            .GetServices<IPipelineBehavior<TRequest, TResult>>()
-            .Reverse()
-            .ToList();
-
-        RequestHandlerDelegate<TResult> handler = () =>
+        var previous = CurrentScope;
+        var scope = new ExecutionScope(cancellationToken);
+        CurrentScope = scope;
+        try
         {
-            return InvokeHandler<TRequest, TResult>(request, scope);
-        };
+            var behaviors = _serviceProvider
+                .GetServices<IPipelineBehavior<TRequest, TResult>>()
+                .ToArray();
 
-        foreach (var behavior in behaviors)
-        {
-            var next = handler;
-            handler = () => behavior.Handle(request, next, scope.CancellationToken);
+            RequestHandlerDelegate<TResult> handler = () =>
+            {
+                return InvokeHandler<TRequest, TResult>(request, scope);
+            };
+
+            for (var i = behaviors.Length - 1; i >= 0; i--)
+            {
+                var behavior = behaviors[i];
+                var next = handler;
+                handler = () => behavior.Handle(request, next, scope.CancellationToken);
+            }
+
+            return await handler();
         }
+        finally
+        {
+            scope.Dispose();
+            CurrentScope = previous;
+        }
+    }
 
-        return await handler();
+    private static ExecutionScope? CurrentScope
+    {
+        get => ExecutionScope.Current;
+        set => ExecutionScope.Current = value;
     }
 
     private async Task<TResult> InvokeHandler<TRequest, TResult>(
@@ -77,17 +94,8 @@ public class FlowMediator : IFlowMediator
             return generatedResult.Value;
 
         var requestType = request!.GetType();
-
-        if (typeof(IQuery<TResult>).IsAssignableFrom(typeof(TRequest)))
-        {
-            var handlerType = typeof(IQueryHandler<,>).MakeGenericType(requestType, typeof(TResult));
-            var handler = _serviceProvider.GetRequiredService(handlerType);
-            return await InvokeHandleWithReflectionAsync<TResult>(handler, request, scope.CancellationToken);
-        }
-
-        var commandHandlerType = typeof(ICommandHandler<,>).MakeGenericType(requestType, typeof(TResult));
-        var commandHandler = _serviceProvider.GetRequiredService(commandHandlerType);
-        return await InvokeHandleWithReflectionAsync<TResult>(commandHandler, request, scope.CancellationToken);
+        var handler = _handlerResolver.GetHandler(requestType, typeof(TResult));
+        return await InvokeHandleWithReflectionAsync<TResult>(handler, request, scope.CancellationToken);
     }
 
     [RequiresDynamicCode("The fallback handler invoker uses reflection. Use Source Generators for AOT compatibility.")]
@@ -124,6 +132,7 @@ public class FlowMediator : IFlowMediator
     {
         private Func<object, IServiceProvider, CancellationToken, ValueTask<object?>>? _dispatchFunc;
         private bool _initialized;
+        private readonly object _syncLock = new();
 
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, "FlowCore.Generated.GeneratedDispatcher", "FlowCore")]
         public async ValueTask<DispatchResult<TResult>> TryDispatchAsync<TResult>(
@@ -151,7 +160,7 @@ public class FlowMediator : IFlowMediator
             if (_initialized)
                 return _dispatchFunc;
 
-            lock (this)
+            lock (_syncLock)
             {
                 if (_initialized)
                     return _dispatchFunc;
@@ -172,21 +181,19 @@ public class FlowMediator : IFlowMediator
                                 t.FullName == "FlowCore.Generated.GeneratedDispatcher");
                     }
 
-                    if (generatedType is null)
-                        return null;
+                    if (generatedType is null) return null;
 
                     var method = generatedType.GetMethod("DispatchAsync",
                         BindingFlags.Static | BindingFlags.Public,
                         [typeof(object), typeof(IServiceProvider), typeof(CancellationToken)]);
 
-                    if (method is null)
-                        return null;
+                    if (method is null) return null;
 
-                    _dispatchFunc = (obj, sp, ct) =>
-                    {
-                        var task = (ValueTask<object?>)method.Invoke(null, [obj, sp, ct])!;
-                        return task;
-                    };
+                    _dispatchFunc = (Func<object, IServiceProvider, CancellationToken, ValueTask<object?>>)
+                        Delegate.CreateDelegate(
+                            typeof(Func<object, IServiceProvider, CancellationToken, ValueTask<object?>>),
+                            null,
+                            method);
                 }
                 catch
                 {

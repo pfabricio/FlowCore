@@ -17,4 +17,18 @@ internal sealed class InMemoryInboxStore : IInboxStore
         _messages[message.MessageId] = message;
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask CleanupAsync(TimeSpan olderThan, CancellationToken cancellationToken = default)
+    {
+        var cutoff = DateTimeOffset.UtcNow.Subtract(olderThan);
+        foreach (var kvp in _messages.ToArray())
+        {
+            if (cancellationToken.IsCancellationRequested)
+                break;
+
+            if (kvp.Value.ProcessedAt < cutoff)
+                _messages.TryRemove(kvp.Key, out _);
+        }
+        return ValueTask.CompletedTask;
+    }
 }

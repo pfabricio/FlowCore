@@ -11,7 +11,7 @@
 		<PackageId>FlowCore</PackageId>
 		<AssemblyName>FlowCore</AssemblyName>
 		<RootNamespace>FlowCore</RootNamespace>
-		<Version>2.2.1</Version>
+		<Version>2.2.2</Version>
 		<Authors>Paulo Fabricio</Authors>
 		<Company>DevSpace</Company>
 		<Description>Framework .NET 8+ para CQRS, Event-Driven e Microsserviços. Mediator com Pipeline Behaviors, EventBus multi-provider (InMemory/RabbitMQ/Kafka), Outbox, Inbox, Saga, Scheduled Messages, Retry, DLQ, OpenTelemetry, Module System, Handler Discovery, Execution Scope, Diagnostics Context e Source Generator.</Description>

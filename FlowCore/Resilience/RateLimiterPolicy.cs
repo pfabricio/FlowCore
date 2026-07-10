@@ -7,6 +7,7 @@ public sealed class RateLimiterPolicy : IResiliencePolicy
     private readonly int _maxRequests;
     private readonly TimeSpan _window;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly object _rateLock = new();
 
     private int _requestCount;
     private DateTime _windowStart;
@@ -47,21 +48,24 @@ public sealed class RateLimiterPolicy : IResiliencePolicy
             {
                 var now = DateTime.UtcNow;
 
-                if (now - _windowStart >= _window)
+                lock (_rateLock)
                 {
-                    _requestCount = 0;
-                    _windowStart = now;
-                }
+                    if (now - _windowStart >= _window)
+                    {
+                        _requestCount = 0;
+                        _windowStart = now;
+                    }
 
-                if (_requestCount < _maxRequests)
-                {
-                    _requestCount++;
-                    return;
+                    if (_requestCount < _maxRequests)
+                    {
+                        _requestCount++;
+                        return;
+                    }
                 }
             }
             finally
             {
-                _ = _semaphore.Release();
+                _semaphore.Release();
             }
 
             await Task.Delay(_window / _maxRequests, cancellationToken).ConfigureAwait(false);

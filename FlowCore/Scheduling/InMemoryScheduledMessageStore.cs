@@ -7,6 +7,7 @@ namespace FlowCore.Scheduling;
 internal sealed class InMemoryScheduledMessageStore : IScheduledMessageStore
 {
     private readonly ConcurrentDictionary<Guid, ScheduledMessage> _messages = new();
+    private readonly object _enumLock = new();
 
     public ValueTask SaveAsync(ScheduledMessage message, CancellationToken cancellationToken = default)
     {
@@ -16,16 +17,31 @@ internal sealed class InMemoryScheduledMessageStore : IScheduledMessageStore
 
     public async IAsyncEnumerable<ScheduledMessage> GetDueMessagesAsync(DateTimeOffset utcNow, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        foreach (var msg in _messages.Values)
+        var due = new List<ScheduledMessage>();
+
+        foreach (var msg in _messages.Values.ToArray())
         {
             if (cancellationToken.IsCancellationRequested)
                 yield break;
 
-            if (msg.Status == ScheduledMessageStatus.Pending && msg.ExecuteAt <= utcNow)
+            if (msg.ExecuteAt <= utcNow)
             {
-                msg.Status = ScheduledMessageStatus.Publishing;
-                yield return msg;
+                lock (_enumLock)
+                {
+                    if (msg.Status == ScheduledMessageStatus.Pending)
+                    {
+                        msg.Status = ScheduledMessageStatus.Publishing;
+                        due.Add(msg);
+                    }
+                }
             }
+        }
+
+        foreach (var msg in due)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                yield break;
+            yield return msg;
         }
 
         await ValueTask.CompletedTask;
@@ -47,6 +63,24 @@ internal sealed class InMemoryScheduledMessageStore : IScheduledMessageStore
         {
             msg.Status = ScheduledMessageStatus.Failed;
             msg.RetryCount++;
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask CleanupAsync(TimeSpan olderThan, CancellationToken cancellationToken = default)
+    {
+        var cutoff = DateTimeOffset.UtcNow.Subtract(olderThan);
+        foreach (var kvp in _messages.ToArray())
+        {
+            if (cancellationToken.IsCancellationRequested)
+                break;
+
+            var msg = kvp.Value;
+            if (msg.Status is ScheduledMessageStatus.Published or ScheduledMessageStatus.Failed)
+            {
+                if (msg.PublishedAt.HasValue && msg.PublishedAt.Value < cutoff)
+                    _messages.TryRemove(kvp.Key, out _);
+            }
         }
         return ValueTask.CompletedTask;
     }

@@ -23,7 +23,7 @@ internal sealed class KafkaConsumerWorker : ConsumerWorker
         _retryHandler = retryHandler;
     }
 
-    protected override Task ExecuteConsumeAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteConsumeAsync(CancellationToken stoppingToken)
     {
         var config = new ConsumerConfig
         {
@@ -47,53 +47,55 @@ internal sealed class KafkaConsumerWorker : ConsumerWorker
                 if (envelope is null || !EnvelopeValidator.IsValid(envelope))
                     continue;
 
-                var attempt = 0;
-                Exception? lastException = null;
-
-                do
-                {
-                    try
-                    {
-                        attempt++;
-                        ProcessEnvelopeAsync(envelope, stoppingToken)
-                            .GetAwaiter().GetResult();
-
-                        consumer.Commit();
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        lastException = ex;
-
-                        var context = new RetryContext
-                        {
-                            Attempt = attempt,
-                            Exception = ex,
-                            EventType = envelope.EventType,
-                            MessageId = envelope.MessageId,
-                            Timestamp = DateTimeOffset.UtcNow,
-                            Provider = "Kafka"
-                        };
-
-                        var shouldRetry = _retryHandler.ShouldRetryAsync(context, stoppingToken)
-                            .GetAwaiter().GetResult();
-
-                        if (!shouldRetry)
-                            break;
-                    }
-                }
-                while (true);
-
-                if (lastException is not null)
-                    consumer.Commit();
+                await ConsumeWithRetryAsync(envelope, consumer, stoppingToken);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
         }
+    }
 
-        return Task.CompletedTask;
+    private async Task ConsumeWithRetryAsync(
+        MessageEnvelope envelope,
+        IConsumer<string, byte[]> consumer,
+        CancellationToken cancellationToken)
+    {
+        var attempt = 0;
+        Exception? lastException = null;
+
+        do
+        {
+            try
+            {
+                attempt++;
+                await ProcessEnvelopeAsync(envelope, cancellationToken);
+                consumer.Commit();
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+
+                var context = new RetryContext
+                {
+                    Attempt = attempt,
+                    Exception = ex,
+                    EventType = envelope.EventType,
+                    MessageId = envelope.MessageId,
+                    Timestamp = DateTimeOffset.UtcNow,
+                    Provider = "Kafka"
+                };
+
+                var shouldRetry = await _retryHandler.ShouldRetryAsync(context, cancellationToken);
+                if (!shouldRetry)
+                    break;
+            }
+        }
+        while (true);
+
+        if (lastException is not null)
+            consumer.Commit();
     }
 
     private MessageEnvelope? DeserializeEnvelope(byte[] body)

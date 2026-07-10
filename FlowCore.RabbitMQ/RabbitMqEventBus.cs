@@ -1,4 +1,5 @@
 using RabbitMQ.Client;
+using Microsoft.Extensions.Logging;
 using FlowCore.Core.Interfaces;
 using FlowCore.Messaging;
 using FlowCore.RabbitMQ.Configuration;
@@ -10,6 +11,7 @@ internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposabl
     private readonly RabbitMQOptions _options;
     private readonly RabbitMqConnectionManager _connectionManager;
     private readonly IMessageSerializer _serializer;
+    private readonly ILogger<RabbitMqEventBus> _logger;
     private IModel? _publishChannel;
     private bool _started;
 
@@ -18,11 +20,13 @@ internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposabl
     public RabbitMqEventBus(
         RabbitMQOptions options,
         RabbitMqConnectionManager connectionManager,
-        IMessageSerializer serializer)
+        IMessageSerializer serializer,
+        ILogger<RabbitMqEventBus> logger)
     {
         _options = options;
         _connectionManager = connectionManager;
         _serializer = serializer;
+        _logger = logger;
     }
 
     public ValueTask StartAsync(CancellationToken cancellationToken = default)
@@ -31,6 +35,7 @@ internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposabl
         {
             _publishChannel = _connectionManager.CreateChannel();
             _started = true;
+            _logger.LogInformation("RabbitMQ EventBus started");
         }
         return ValueTask.CompletedTask;
     }
@@ -43,6 +48,7 @@ internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposabl
             _publishChannel?.Dispose();
             _publishChannel = null;
             _started = false;
+            _logger.LogInformation("RabbitMQ EventBus stopped");
         }
         return ValueTask.CompletedTask;
     }
@@ -74,21 +80,49 @@ internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposabl
 
         var channel = _publishChannel ??= _connectionManager.CreateChannel();
 
-        channel.BasicPublish(
-            exchange: _options.ExchangeName,
-            routingKey: routingKey,
-            body: body);
+        _logger.LogDebug("Publishing {EventType} to {Exchange}/{RoutingKey}",
+            eventType.Name, _options.ExchangeName, routingKey);
+
+        try
+        {
+            channel.BasicPublish(
+                exchange: _options.ExchangeName,
+                routingKey: routingKey,
+                body: body);
+
+            _logger.LogDebug("Published {EventType} successfully", eventType.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish {EventType} to RabbitMQ", eventType.Name);
+            throw;
+        }
 
         return Task.CompletedTask;
     }
+}
 
     private static string EventTypeToRoutingKey(Type eventType)
     {
         var name = eventType.Name;
         if (name.EndsWith("Event") && name.Length > 5)
-            return name[..^5].ToLowerInvariant();
+            name = name[..^5];
 
-        return name.ToLowerInvariant();
+        return SanitizeTopic(name);
+    }
+
+    private static string SanitizeTopic(string name)
+    {
+        return string.Create(name.Length, name, (span, s) =>
+        {
+            for (int i = 0; i < s.Length; i++)
+            {
+                var c = s[i];
+                span[i] = char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.'
+                    ? char.ToLowerInvariant(c)
+                    : '_';
+            }
+        });
     }
 
     public void Dispose()

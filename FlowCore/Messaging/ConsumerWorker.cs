@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using FlowCore.Core.Interfaces;
 using FlowCore.Diagnostics;
 using FlowCore.Execution;
@@ -21,7 +22,17 @@ public abstract class ConsumerWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await ExecuteConsumeAsync(stoppingToken);
+        try
+        {
+            await ExecuteConsumeAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            var logger = _serviceProvider.GetService<ILogger<ConsumerWorker>>();
+            logger?.LogError(ex, "Consumer worker {WorkerType} failed unexpectedly", GetType().Name);
+            throw;
+        }
     }
 
     protected async Task ProcessEnvelopeAsync(MessageEnvelope envelope, CancellationToken cancellationToken)
