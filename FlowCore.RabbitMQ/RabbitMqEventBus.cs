@@ -100,7 +100,6 @@ internal sealed class RabbitMqEventBus : IEventBus, IMessageProvider, IDisposabl
 
         return Task.CompletedTask;
     }
-}
 
     private static string EventTypeToRoutingKey(Type eventType)
     {
